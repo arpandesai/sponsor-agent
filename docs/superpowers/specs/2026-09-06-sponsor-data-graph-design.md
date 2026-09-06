@@ -127,6 +127,40 @@ suppressing them entirely as it did before. `SponsorsClient` filters these out
 of what's rendered/clickable (only `prospect` entries are shown as cards) —
 they still get persisted.
 
+## Free Search via TinyFish (Monid)
+
+Confirmed real (`docs.tinyfish.ai`): `GET https://api.search.tinyfish.ai` with
+an `X-API-Key` header, `?query=...` (plus optional `domain_type`, etc.),
+returns `{ query, results: [{ position, site_name, title, snippet, url }],
+total_results, page }`. Search and Fetch are both free on TinyFish — Fetch is
+already used as our scrape fallback (`lib/tinyfish.ts`); Search was unused.
+
+`findSponsors` is restructured from one paid search-grounded completion into
+two steps:
+
+1. **Query generation** (pure, deterministic, no API call) —
+   `buildSponsorSearchQueries(profile): string[]` in `lib/openrouter.ts`,
+   templating the exact methodology from the previous iteration's prompt:
+   location+sport, location+community, competitor-sport mining (a fixed
+   `OTHER_SPORTS` list — soccer, hockey, basketball, swimming, gymnastics,
+   athletics — minus the org's own sport), and industry-specific (credit
+   union, dealership, law firm, insurance, dental).
+2. **Free search + synthesis** — `lib/tinyfish.ts` gains `searchWeb(query)`
+   (same error-hardening pattern as `scrapeUrl`). `findSponsors` runs every
+   generated query through `searchWeb` in parallel (`Promise.allSettled`,
+   tolerating individual query failures), concatenates the
+   title/snippet/url/site_name results into a context blob, and sends that —
+   not a live-search request — to OpenRouter for synthesis into the same
+   structured `Sponsor[]` JSON. Because real search results are already
+   supplied as context, synthesis no longer needs a search-capable model —
+   it uses `EXTRACTION_MODEL` (cheaper, no search tool cost).
+
+**Fallback:** if every TinyFish search call fails (e.g. outage), `findSponsors`
+falls back to the previous single-call `perplexity/sonar` web-search approach
+— same resilience pattern already established for `lib/scrape.ts`
+(Firecrawl-first, TinyFish-fallback), applied here as
+TinyFish-search-first-then-perplexity-fallback.
+
 ## Data Flow
 
 1. `/api/analyze` scrapes the site, calls `extractOrgProfile` (now also
@@ -159,6 +193,14 @@ they still get persisted.
 
 ## Testing
 
+- `lib/tinyfish.ts` `searchWeb`: unit tests (mocked fetch) covering success,
+  non-ok response, malformed JSON, missing API key — same adversarial pattern
+  as `scrapeUrl`.
+- `lib/openrouter.ts` `buildSponsorSearchQueries`: pure function, unit tests
+  covering query shape for a given profile (no mocking needed).
+- `lib/openrouter.ts` `findSponsors`: updated tests covering the search-then-
+  synthesize path (mocked `searchWeb` + mocked `callOpenRouter`) and the
+  all-searches-failed fallback path.
 - `lib/db.ts`: unit tests for the upsert helper functions (mocked `sql` client)
   covering the write shapes for each table, including the best-effort
   error-swallowing behavior.
