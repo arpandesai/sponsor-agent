@@ -27,6 +27,23 @@ test('completes the funding discovery journey against real APIs', async ({ page 
   await expect(page.getByRole('heading', { name: 'Grants' })).toBeVisible();
   await expect(page.getByText(/matching grants/)).toBeVisible();
 
-  await expect(page.getByRole('button', { name: /view sponsors/i })).toBeDisabled();
   await expect(page.getByRole('button', { name: /find grants/i })).toBeDisabled();
+
+  await page.getByRole('button', { name: /view sponsors/i }).click();
+  await expect(page).toHaveURL('/sponsors', { timeout: 15_000 });
+
+  // Real web-search sponsor discovery can take a while.
+  await expect(page.getByText(/% match/).first()).toBeVisible({ timeout: 60_000 });
+
+  // Click into the first sponsor card.
+  await page.locator('button').filter({ hasText: '% match' }).first().click();
+  await expect(page).toHaveURL(/\/sponsors\/\d+$/, { timeout: 15_000 });
+  await expect(page.getByRole('button', { name: /generate pitch/i })).toBeVisible();
+
+  await page.getByRole('button', { name: /generate pitch/i }).click();
+  await expect(page).toHaveURL(/\/sponsors\/\d+\/pitch$/, { timeout: 15_000 });
+
+  // Real pitch drafting can take a while.
+  await expect(page.locator('input')).not.toHaveValue('', { timeout: 60_000 });
+  await expect(page.locator('textarea')).not.toHaveValue('');
 });
