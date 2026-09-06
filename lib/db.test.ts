@@ -186,3 +186,78 @@ describe('logApiCall', () => {
     ).resolves.toBeUndefined();
   });
 });
+
+describe('admin query functions', () => {
+  beforeEach(() => {
+    process.env.POSTGRES_URL = 'postgres://test';
+    calls.length = 0;
+    queue.length = 0;
+  });
+
+  it('getApiCallStats groups by provider', async () => {
+    queue.push([{ provider: 'openrouter', total_calls: '5', total_cost: '0.05', avg_latency: '1200', error_rate: '0.2' }]);
+
+    const { getApiCallStats } = await import('./db');
+    const stats = await getApiCallStats();
+
+    expect(calls[0].text).toContain('GROUP BY provider');
+    expect(stats).toEqual([{ provider: 'openrouter', totalCalls: 5, totalCost: 0.05, avgLatencyMs: 1200, errorRate: 0.2 }]);
+  });
+
+  it('getApiCallStats returns an empty array instead of throwing on DB error', async () => {
+    queue.push({ reject: new Error('down') });
+    const { getApiCallStats } = await import('./db');
+    await expect(getApiCallStats()).resolves.toEqual([]);
+  });
+
+  it('getApiCallLogs applies provider/status filters and pagination', async () => {
+    queue.push([{ id: '1', provider: 'firecrawl', endpoint: '/v1/scrape', model: null, status: 'success', error_message: null, latency_ms: 900, cost_usd: null, request_summary: {}, created_at: '2026-01-01' }]);
+
+    const { getApiCallLogs } = await import('./db');
+    const logs = await getApiCallLogs({ provider: 'firecrawl', status: 'success', page: 2 });
+
+    expect(calls[0].text).toContain('FROM api_call_logs');
+    expect(logs).toHaveLength(1);
+    expect(logs[0].provider).toBe('firecrawl');
+  });
+
+  it('getApiCallLogs returns an empty array instead of throwing on DB error', async () => {
+    queue.push({ reject: new Error('down') });
+    const { getApiCallLogs } = await import('./db');
+    await expect(getApiCallLogs({})).resolves.toEqual([]);
+  });
+
+  it('getApiCallErrors filters to status=error only', async () => {
+    queue.push([]);
+    const { getApiCallErrors } = await import('./db');
+    await getApiCallErrors();
+    expect(calls[0].text).toContain("status = 'error'");
+  });
+
+  it('getClubsOverview returns clubs with sponsor counts', async () => {
+    queue.push([{ id: 'club-1', name: 'Prairie Fencing Club', sport: 'Fencing', city: 'Saskatoon', region: 'Saskatchewan', country: 'Canada', match_count: '3', relationship_count: '1' }]);
+
+    const { getClubsOverview } = await import('./db');
+    const clubs = await getClubsOverview();
+
+    expect(clubs).toEqual([
+      { id: 'club-1', name: 'Prairie Fencing Club', sport: 'Fencing', city: 'Saskatoon', region: 'Saskatchewan', country: 'Canada', matchCount: 3, relationshipCount: 1 },
+    ]);
+  });
+
+  it('getClubsOverview returns an empty array instead of throwing on DB error', async () => {
+    queue.push({ reject: new Error('down') });
+    const { getClubsOverview } = await import('./db');
+    await expect(getClubsOverview()).resolves.toEqual([]);
+  });
+
+  it('getDiscoveryRunsForClub returns run history for one club', async () => {
+    queue.push([{ run_type: 'sponsor_discovery', status: 'completed', candidates_found: 12, candidates_qualified: 8, started_at: '2026-01-01' }]);
+
+    const { getDiscoveryRunsForClub } = await import('./db');
+    const runs = await getDiscoveryRunsForClub('club-1');
+
+    expect(runs).toHaveLength(1);
+    expect(runs[0].candidatesFound).toBe(12);
+  });
+});

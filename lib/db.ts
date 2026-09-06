@@ -179,3 +179,174 @@ export async function logApiCall(entry: ApiCallLogEntry): Promise<void> {
     console.error('logApiCall failed:', err);
   }
 }
+
+export interface ApiCallProviderStats {
+  provider: string;
+  totalCalls: number;
+  totalCost: number;
+  avgLatencyMs: number;
+  errorRate: number;
+}
+
+export async function getApiCallStats(): Promise<ApiCallProviderStats[]> {
+  try {
+    const sql = getSql();
+    const rows = await sql`
+      SELECT
+        provider,
+        COUNT(*) AS total_calls,
+        COALESCE(SUM(cost_usd), 0) AS total_cost,
+        COALESCE(AVG(latency_ms), 0) AS avg_latency,
+        (SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END))::float / COUNT(*) AS error_rate
+      FROM api_call_logs
+      GROUP BY provider
+      ORDER BY provider
+    `;
+    return rows.map((r: any) => ({
+      provider: r.provider,
+      totalCalls: Number(r.total_calls),
+      totalCost: Number(r.total_cost),
+      avgLatencyMs: Number(r.avg_latency),
+      errorRate: Number(r.error_rate),
+    }));
+  } catch (err) {
+    console.error('getApiCallStats failed:', err);
+    return [];
+  }
+}
+
+export interface ApiCallLogRow {
+  id: string;
+  provider: string;
+  endpoint: string | null;
+  model: string | null;
+  status: 'success' | 'error';
+  errorMessage: string | null;
+  latencyMs: number;
+  costUsd: number | null;
+  requestSummary: Record<string, unknown>;
+  createdAt: string;
+}
+
+function toApiCallLogRow(r: any): ApiCallLogRow {
+  return {
+    id: r.id,
+    provider: r.provider,
+    endpoint: r.endpoint,
+    model: r.model,
+    status: r.status,
+    errorMessage: r.error_message,
+    latencyMs: Number(r.latency_ms),
+    costUsd: r.cost_usd === null ? null : Number(r.cost_usd),
+    requestSummary: r.request_summary ?? {},
+    createdAt: r.created_at,
+  };
+}
+
+const PAGE_SIZE = 20;
+
+export async function getApiCallLogs(opts: {
+  provider?: string;
+  status?: 'success' | 'error';
+  page?: number;
+}): Promise<ApiCallLogRow[]> {
+  try {
+    const sql = getSql();
+    const offset = ((opts.page ?? 1) - 1) * PAGE_SIZE;
+    const rows = await sql`
+      SELECT * FROM api_call_logs
+      WHERE (${opts.provider ?? null}::text IS NULL OR provider = ${opts.provider ?? null})
+        AND (${opts.status ?? null}::text IS NULL OR status = ${opts.status ?? null}::api_call_status_enum)
+      ORDER BY created_at DESC
+      LIMIT ${PAGE_SIZE} OFFSET ${offset}
+    `;
+    return rows.map(toApiCallLogRow);
+  } catch (err) {
+    console.error('getApiCallLogs failed:', err);
+    return [];
+  }
+}
+
+export async function getApiCallErrors(): Promise<ApiCallLogRow[]> {
+  try {
+    const sql = getSql();
+    const rows = await sql`
+      SELECT * FROM api_call_logs
+      WHERE status = 'error'
+      ORDER BY created_at DESC
+      LIMIT 100
+    `;
+    return rows.map(toApiCallLogRow);
+  } catch (err) {
+    console.error('getApiCallErrors failed:', err);
+    return [];
+  }
+}
+
+export interface ClubOverviewRow {
+  id: string;
+  name: string;
+  sport: string;
+  city: string | null;
+  region: string | null;
+  country: string | null;
+  matchCount: number;
+  relationshipCount: number;
+}
+
+export async function getClubsOverview(): Promise<ClubOverviewRow[]> {
+  try {
+    const sql = getSql();
+    const rows = await sql`
+      SELECT
+        c.id, c.name, c.sport, c.city, c.region, c.country,
+        (SELECT COUNT(*) FROM sponsor_matches sm WHERE sm.club_id = c.id) AS match_count,
+        (SELECT COUNT(*) FROM sponsorship_relationships sr WHERE sr.club_id = c.id) AS relationship_count
+      FROM clubs c
+      ORDER BY c.created_at DESC
+    `;
+    return rows.map((r: any) => ({
+      id: r.id,
+      name: r.name,
+      sport: r.sport,
+      city: r.city,
+      region: r.region,
+      country: r.country,
+      matchCount: Number(r.match_count),
+      relationshipCount: Number(r.relationship_count),
+    }));
+  } catch (err) {
+    console.error('getClubsOverview failed:', err);
+    return [];
+  }
+}
+
+export interface DiscoveryRunRow {
+  runType: string;
+  status: string;
+  candidatesFound: number;
+  candidatesQualified: number;
+  startedAt: string;
+}
+
+export async function getDiscoveryRunsForClub(clubId: string): Promise<DiscoveryRunRow[]> {
+  try {
+    const sql = getSql();
+    const rows = await sql`
+      SELECT run_type, status, candidates_found, candidates_qualified, started_at
+      FROM discovery_runs
+      WHERE club_id = ${clubId}
+      ORDER BY started_at DESC
+    `;
+    return rows.map((r: any) => ({
+      runType: r.run_type,
+      status: r.status,
+      candidatesFound: Number(r.candidates_found),
+      candidatesQualified: Number(r.candidates_qualified),
+      startedAt: r.started_at,
+    }));
+  } catch (err) {
+    console.error('getDiscoveryRunsForClub failed:', err);
+    return [];
+  }
+}
