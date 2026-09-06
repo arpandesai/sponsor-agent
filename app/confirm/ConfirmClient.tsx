@@ -111,6 +111,19 @@ export default function ConfirmClient() {
         </div>
       </div>
 
+      {profile.currentSponsors && profile.currentSponsors.length > 0 ? (
+        <div>
+          <h2 className="mb-2 text-sm font-medium">Current Sponsors We Found</h2>
+          <ul className="flex flex-col gap-1 text-sm">
+            {profile.currentSponsors.map((sponsor) => (
+              <li key={sponsor}>
+                <span aria-hidden>✓</span> <span>{sponsor}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       <div>
         <h2 className="mb-2 text-sm font-medium">Programs We Found</h2>
         <ul className="flex flex-col gap-1 text-sm">

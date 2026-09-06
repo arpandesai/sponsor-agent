@@ -36,6 +36,19 @@ describe('Confirm page', () => {
     expect(screen.getByText('Youth Fencing')).toBeInTheDocument();
   });
 
+  it('shows "Current Sponsors We Found" when currentSponsors is present', () => {
+    sessionStorage.setItem('orgProfile', JSON.stringify({ ...profile, currentSponsors: ['Conexus Credit Union', 'SaskPower'] }));
+    render(<Page />);
+    expect(screen.getByText('Current Sponsors We Found')).toBeInTheDocument();
+    expect(screen.getByText('Conexus Credit Union')).toBeInTheDocument();
+    expect(screen.getByText('SaskPower')).toBeInTheDocument();
+  });
+
+  it('omits the "Current Sponsors We Found" section when currentSponsors is empty or absent', () => {
+    render(<Page />);
+    expect(screen.queryByText('Current Sponsors We Found')).not.toBeInTheDocument();
+  });
+
   it('shows and lets you edit location, sport, organisation type, and audience — not just name', () => {
     render(<Page />);
     expect(screen.getByDisplayValue('Saskatoon, Saskatchewan, Canada')).toBeInTheDocument();
