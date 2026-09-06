@@ -139,3 +139,50 @@ describe('persistClubFromProfile / persistSponsorDiscovery', () => {
     await expect(persistSponsorDiscovery(profile as any, [])).resolves.toBeUndefined();
   });
 });
+
+describe('logApiCall', () => {
+  beforeEach(() => {
+    process.env.POSTGRES_URL = 'postgres://test';
+    calls.length = 0;
+    queue.length = 0;
+  });
+
+  it('inserts a row with the given fields', async () => {
+    queue.push([]);
+
+    const { logApiCall } = await import('./db');
+    await logApiCall({
+      provider: 'openrouter',
+      model: 'perplexity/sonar',
+      status: 'success',
+      latencyMs: 1234,
+      costUsd: 0.0013,
+      requestSummary: { messageCount: 2 },
+    });
+
+    const insertCall = calls.find((c) => c.text.includes('INSERT INTO api_call_logs'));
+    expect(insertCall).toBeDefined();
+    expect(insertCall!.values).toContain('openrouter');
+    expect(insertCall!.values).toContain('perplexity/sonar');
+    expect(insertCall!.values).toContain(1234);
+    expect(insertCall!.values).toContain(0.0013);
+  });
+
+  it('defaults optional fields to null instead of throwing', async () => {
+    queue.push([]);
+
+    const { logApiCall } = await import('./db');
+    await expect(
+      logApiCall({ provider: 'firecrawl', status: 'error', errorMessage: 'timeout', latencyMs: 500 })
+    ).resolves.toBeUndefined();
+  });
+
+  it('swallows DB errors instead of throwing', async () => {
+    queue.push({ reject: new Error('connection refused') });
+
+    const { logApiCall } = await import('./db');
+    await expect(
+      logApiCall({ provider: 'monid_tinyfish', status: 'success', latencyMs: 100 })
+    ).resolves.toBeUndefined();
+  });
+});

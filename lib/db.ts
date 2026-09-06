@@ -152,3 +152,30 @@ export async function persistSponsorDiscovery(profile: OrgProfile, sponsors: Spo
     console.error('persistSponsorDiscovery failed:', err);
   }
 }
+
+export interface ApiCallLogEntry {
+  provider: string;
+  endpoint?: string;
+  model?: string;
+  status: 'success' | 'error';
+  errorMessage?: string;
+  latencyMs: number;
+  costUsd?: number;
+  requestSummary?: Record<string, unknown>;
+}
+
+export async function logApiCall(entry: ApiCallLogEntry): Promise<void> {
+  try {
+    const sql = getSql();
+    await sql`
+      INSERT INTO api_call_logs (provider, endpoint, model, status, error_message, latency_ms, cost_usd, request_summary)
+      VALUES (
+        ${entry.provider}, ${entry.endpoint ?? null}, ${entry.model ?? null}, ${entry.status},
+        ${entry.errorMessage ?? null}, ${entry.latencyMs}, ${entry.costUsd ?? null},
+        ${JSON.stringify(entry.requestSummary ?? {})}
+      )
+    `;
+  } catch (err) {
+    console.error('logApiCall failed:', err);
+  }
+}
