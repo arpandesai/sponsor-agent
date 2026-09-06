@@ -2,9 +2,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('@/lib/scrape', () => ({ scrapeUrl: vi.fn() }));
 vi.mock('@/lib/openrouter', () => ({ extractOrgProfile: vi.fn() }));
+vi.mock('@/lib/db', () => ({ persistClubFromProfile: vi.fn().mockResolvedValue(undefined) }));
 
 import { scrapeUrl } from '@/lib/scrape';
 import { extractOrgProfile } from '@/lib/openrouter';
+import { persistClubFromProfile } from '@/lib/db';
 import { GET } from './route';
 
 async function readAllEvents(response: Response): Promise<string> {
@@ -47,6 +49,29 @@ describe('GET /api/analyze', () => {
     expect(output).toContain('Found organisation name');
     expect(output).toContain('event: done');
     expect(output).toContain('Prairie Fencing Club');
+    expect(persistClubFromProfile).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Prairie Fencing Club' })
+    );
+  });
+
+  it('still streams the done event when persisting to the DB fails', async () => {
+    (scrapeUrl as any).mockResolvedValue({ url: 'https://example.com', text: 'site text' });
+    (extractOrgProfile as any).mockResolvedValue({
+      name: 'Prairie Fencing Club',
+      location: '',
+      sport: '',
+      organisationType: '',
+      audience: [],
+      programs: [],
+      fundingNeeds: [],
+    });
+    (persistClubFromProfile as any).mockRejectedValue(new Error('db down'));
+
+    const request = new Request('http://localhost/api/analyze?url=https%3A%2F%2Fexample.com');
+    const response = await GET(request);
+    const output = await readAllEvents(response);
+
+    expect(output).toContain('event: done');
   });
 
   it('streams an error event when scraping fails', async () => {

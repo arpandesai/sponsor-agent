@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('@/lib/openrouter', () => ({ findSponsors: vi.fn() }));
+vi.mock('@/lib/db', () => ({ persistSponsorDiscovery: vi.fn().mockResolvedValue(undefined) }));
 
 import { findSponsors } from '@/lib/openrouter';
+import { persistSponsorDiscovery } from '@/lib/db';
 import { POST } from './route';
 
 describe('POST /api/sponsors', () => {
@@ -34,6 +36,27 @@ describe('POST /api/sponsors', () => {
     expect(response.status).toBe(200);
     expect(body).toHaveLength(1);
     expect(body[0].name).toBe('Prairie Sports Supply');
+    expect(persistSponsorDiscovery).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Prairie Fencing Club' }),
+      expect.arrayContaining([expect.objectContaining({ name: 'Prairie Sports Supply' })])
+    );
+  });
+
+  it('still returns the sponsor list when persisting to the DB fails', async () => {
+    (findSponsors as any).mockResolvedValue([
+      { name: 'Prairie Sports Supply', matchScore: 82, matchReason: 'r', estimatedMinUsd: 2000, estimatedMaxUsd: 10000, category: 'Local Business' },
+    ]);
+    (persistSponsorDiscovery as any).mockRejectedValue(new Error('db down'));
+
+    const request = new Request('http://localhost/api/sponsors', {
+      method: 'POST',
+      body: JSON.stringify(profileBody),
+    });
+    const response = await POST(request);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toHaveLength(1);
   });
 
   it('returns a 502 with an error message when findSponsors fails', async () => {

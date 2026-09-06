@@ -1,6 +1,7 @@
 import { scrapeUrl } from '@/lib/scrape';
 import { extractOrgProfile } from '@/lib/openrouter';
 import { errorMessage } from '@/lib/errors';
+import { persistClubFromProfile } from '@/lib/db';
 
 const STEP_LABELS = [
   'Found organisation name',
@@ -38,6 +39,14 @@ export async function GET(request: Request): Promise<Response> {
         for (const label of STEP_LABELS) {
           send('step', { label });
         }
+
+        try {
+          await persistClubFromProfile(profile);
+        } catch {
+          // persistClubFromProfile already catches its own errors — this is
+          // extra insurance so a DB issue can never break the user-facing flow.
+        }
+
         send('done', profile);
       } catch (err) {
         send('error', { error: errorMessage(err) });
