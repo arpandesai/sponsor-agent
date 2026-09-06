@@ -23,4 +23,10 @@ describe('Admin error feed', () => {
     render(await Page());
     expect(screen.getByText(/no errors/i)).toBeInTheDocument();
   });
+
+  it('explains what this screen shows', async () => {
+    (getApiCallErrors as any).mockResolvedValue([]);
+    render(await Page());
+    expect(screen.getByText(/most recent failed provider calls/i)).toBeInTheDocument();
+  });
 });

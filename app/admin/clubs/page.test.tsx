@@ -27,4 +27,10 @@ describe('Admin clubs overview', () => {
     render(await Page());
     expect(screen.getByText(/no clubs analyzed/i)).toBeInTheDocument();
   });
+
+  it('explains what this screen shows', async () => {
+    (getClubsOverview as any).mockResolvedValue([]);
+    render(await Page());
+    expect(screen.getByText(/clubs that have run through/i)).toBeInTheDocument();
+  });
 });

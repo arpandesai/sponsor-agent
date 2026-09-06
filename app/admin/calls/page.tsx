@@ -23,7 +23,12 @@ export default async function Page({
   return (
     <main className="mx-auto flex max-w-4xl flex-col gap-6 px-6 py-16">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Call Log</h1>
+        <div>
+          <h1 className="text-2xl font-semibold">Call Log</h1>
+          <p className="mt-1 text-sm text-[var(--color-muted)]">
+            Every request made to a provider, in order, with its latency and cost.
+          </p>
+        </div>
         <Link href="/admin" className="text-sm underline">
           Back to Dashboard
         </Link>
@@ -49,8 +54,12 @@ export default async function Page({
                 <td className="py-2">{new Date(row.createdAt).toLocaleString()}</td>
                 <td className="py-2">{row.provider}</td>
                 <td className="py-2">{row.model ?? row.endpoint ?? '—'}</td>
-                <td className="py-2">{row.status}</td>
-                <td className="py-2">{row.latencyMs}ms</td>
+                <td className={`py-2 ${row.status === 'error' ? 'text-[var(--color-danger-ink)]' : ''}`}>
+                  {row.status}
+                </td>
+                <td className={`py-2 ${row.latencyMs > 4000 ? 'text-[var(--color-danger-ink)]' : ''}`}>
+                  {row.latencyMs}ms
+                </td>
                 <td className="py-2">{formatCost(row.costUsd)}</td>
               </tr>
             ))}

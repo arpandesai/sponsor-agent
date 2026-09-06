@@ -25,4 +25,26 @@ describe('Admin dashboard', () => {
     render(await Page());
     expect(screen.getByText(/no api calls recorded/i)).toBeInTheDocument();
   });
+
+  it('explains what this screen shows', async () => {
+    (getApiCallStats as any).mockResolvedValue([]);
+    render(await Page());
+    expect(screen.getByText(/cost and reliability of every provider/i)).toBeInTheDocument();
+  });
+
+  it('flags a high error rate', async () => {
+    (getApiCallStats as any).mockResolvedValue([
+      { provider: 'openrouter', totalCalls: 42, totalCost: 0.5321, avgLatencyMs: 1500, errorRate: 0.2 },
+    ]);
+    render(await Page());
+    expect(screen.getByText('20.0%')).toHaveClass('text-[var(--color-danger-ink)]');
+  });
+
+  it('does not flag a healthy error rate', async () => {
+    (getApiCallStats as any).mockResolvedValue([
+      { provider: 'openrouter', totalCalls: 42, totalCost: 0.5321, avgLatencyMs: 1500, errorRate: 0.01 },
+    ]);
+    render(await Page());
+    expect(screen.getByText('1.0%')).not.toHaveClass('text-[var(--color-danger-ink)]');
+  });
 });
