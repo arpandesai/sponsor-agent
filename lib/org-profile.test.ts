@@ -71,4 +71,41 @@ describe('parseOrgProfile', () => {
     expect(result.sport).toBe('');
     expect(result.organisationType).toBe('');
   });
+
+  it('parses currentSponsors and geo fields when present', () => {
+    const result = parseOrgProfile({
+      name: 'Club',
+      currentSponsors: ['Acme Co', 'Beta Inc'],
+      city: 'Saskatoon',
+      region: 'Saskatchewan',
+      country: 'Canada',
+      lat: 52.1332,
+      lng: -106.67,
+    });
+    expect(result.currentSponsors).toEqual(['Acme Co', 'Beta Inc']);
+    expect(result.city).toBe('Saskatoon');
+    expect(result.region).toBe('Saskatchewan');
+    expect(result.country).toBe('Canada');
+    expect(result.lat).toBe(52.1332);
+    expect(result.lng).toBe(-106.67);
+  });
+
+  it('leaves currentSponsors and geo undefined when absent, without throwing', () => {
+    const result = parseOrgProfile({ name: 'Club' });
+    expect(result.currentSponsors).toBeUndefined();
+    expect(result.lat).toBeUndefined();
+  });
+
+  it('does not crash on malformed currentSponsors or geo values', () => {
+    const result = parseOrgProfile({
+      name: 'Club',
+      currentSponsors: [1, null, 'Real Sponsor'],
+      lat: 'not-a-number',
+      lng: null,
+    });
+    expect(() => result).not.toThrow();
+    expect(result.currentSponsors).toEqual(['Real Sponsor']);
+    expect(result.lat).toBeUndefined();
+    expect(result.lng).toBeUndefined();
+  });
 });

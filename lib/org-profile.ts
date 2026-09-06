@@ -8,6 +8,12 @@ export interface OrgProfile {
   audience: string[];
   programs: string[];
   fundingNeeds: string[];
+  currentSponsors?: string[];
+  city?: string;
+  region?: string;
+  country?: string;
+  lat?: number;
+  lng?: number;
 }
 
 const stringArray = z.array(z.string()).default([]);
@@ -20,11 +26,31 @@ const partialProfileSchema = z.object({
   audience: stringArray,
   programs: stringArray,
   fundingNeeds: stringArray,
+  currentSponsors: z.array(z.string()).optional(),
+  city: z.string().optional(),
+  region: z.string().optional(),
+  country: z.string().optional(),
+  lat: z.number().optional(),
+  lng: z.number().optional(),
 });
 
 function toStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((item): item is string => typeof item === 'string');
+}
+
+function toOptionalStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const strings = value.filter((item): item is string => typeof item === 'string');
+  return strings.length > 0 ? strings : undefined;
+}
+
+function toOptionalString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+function toOptionalNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 
 export function parseOrgProfile(input: unknown): OrgProfile {
@@ -43,6 +69,12 @@ export function parseOrgProfile(input: unknown): OrgProfile {
     audience: toStringArray(raw.audience),
     programs: toStringArray(raw.programs),
     fundingNeeds: toStringArray(raw.fundingNeeds),
+    currentSponsors: toOptionalStringArray(raw.currentSponsors),
+    city: toOptionalString(raw.city),
+    region: toOptionalString(raw.region),
+    country: toOptionalString(raw.country),
+    lat: toOptionalNumber(raw.lat),
+    lng: toOptionalNumber(raw.lng),
   });
 }
 
