@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { extractOrgProfile, estimateFunding, parseFundingEstimate } from './openrouter';
+import { extractOrgProfile, estimateFunding, parseFundingEstimate, findSponsors, draftPitch, type Sponsor } from './openrouter';
 import type { OrgProfile } from './org-profile';
 
 describe('extractOrgProfile', () => {
@@ -194,5 +194,138 @@ describe('parseFundingEstimate', () => {
     expect(result.sponsorship.maxUsd).toBe(65000);
     expect(result.sponsorship.rationale).toBe('');
     expect(result.grants).toEqual({ count: 0, minUsd: 0, maxUsd: 0, rationale: '' });
+  });
+});
+
+describe('findSponsors', () => {
+  beforeEach(() => {
+    process.env.OPENROUTER_API_KEY = 'test-key';
+    global.fetch = vi.fn();
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const profile: OrgProfile = {
+    name: 'Prairie Fencing Club',
+    location: 'Saskatoon, Saskatchewan, Canada',
+    sport: 'Fencing',
+    organisationType: 'Community Sports Club',
+    audience: ['Youth', 'Adults'],
+    programs: ['Youth Fencing'],
+    fundingNeeds: ['Equipment'],
+  };
+
+  it('parses a sponsor list from the model response', async () => {
+    const sponsorsJson = JSON.stringify({
+      sponsors: [
+        {
+          name: 'Prairie Sports Supply',
+          matchScore: 82,
+          matchReason: 'Local sporting goods retailer sponsors youth fencing clubs in Saskatchewan.',
+          estimatedMinUsd: 2000,
+          estimatedMaxUsd: 10000,
+          category: 'Local Business',
+        },
+      ],
+    });
+    (global.fetch as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: sponsorsJson } }] }),
+    });
+
+    const sponsors = await findSponsors(profile);
+    expect(sponsors).toHaveLength(1);
+    expect(sponsors[0].name).toBe('Prairie Sports Supply');
+    expect(sponsors[0].matchScore).toBe(82);
+  });
+
+  it('returns an empty array instead of throwing when the model response is unparseable', async () => {
+    (global.fetch as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: 'not json' } }] }),
+    });
+    expect(await findSponsors(profile)).toEqual([]);
+  });
+
+  it('drops malformed entries instead of crashing or returning garbage', async () => {
+    const sponsorsJson = JSON.stringify({
+      sponsors: [
+        { name: 'Good Co', matchScore: 70, matchReason: 'r', estimatedMinUsd: 1000, estimatedMaxUsd: 5000, category: 'Local Business' },
+        { name: 42, matchScore: 'high', matchReason: null },
+        'not even an object',
+      ],
+    });
+    (global.fetch as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: sponsorsJson } }] }),
+    });
+
+    const sponsors = await findSponsors(profile);
+    expect(sponsors).toHaveLength(1);
+    expect(sponsors[0].name).toBe('Good Co');
+  });
+
+  it('preserves the underlying message when fetch rejects with a non-Error value', async () => {
+    (global.fetch as any).mockRejectedValue('connection reset');
+    await expect(findSponsors(profile)).rejects.toThrow(/connection reset/);
+  });
+});
+
+describe('draftPitch', () => {
+  beforeEach(() => {
+    process.env.OPENROUTER_API_KEY = 'test-key';
+    global.fetch = vi.fn();
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const profile: OrgProfile = {
+    name: 'Prairie Fencing Club',
+    location: 'Saskatoon, Saskatchewan, Canada',
+    sport: 'Fencing',
+    organisationType: 'Community Sports Club',
+    audience: ['Youth', 'Adults'],
+    programs: ['Youth Fencing'],
+    fundingNeeds: ['Equipment'],
+  };
+  const sponsor: Sponsor = {
+    name: 'Prairie Sports Supply',
+    matchScore: 82,
+    matchReason: 'Local sporting goods retailer sponsors youth fencing clubs.',
+    estimatedMinUsd: 2000,
+    estimatedMaxUsd: 10000,
+    category: 'Local Business',
+  };
+
+  it('parses a subject/body draft from the model response', async () => {
+    const draftJson = JSON.stringify({
+      subject: 'Partnership opportunity: Prairie Fencing Club',
+      body: 'Dear Prairie Sports Supply team, ...',
+    });
+    (global.fetch as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: draftJson } }] }),
+    });
+
+    const draft = await draftPitch(profile, sponsor);
+    expect(draft.subject).toContain('Prairie Fencing Club');
+    expect(draft.body).toContain('Prairie Sports Supply');
+  });
+
+  it('returns a generic fallback draft instead of throwing when the model response is unparseable', async () => {
+    (global.fetch as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: 'not json' } }] }),
+    });
+    const draft = await draftPitch(profile, sponsor);
+    expect(draft.subject.length).toBeGreaterThan(0);
+    expect(draft.body.length).toBeGreaterThan(0);
+  });
+
+  it('preserves the underlying message when fetch rejects with a non-Error value', async () => {
+    (global.fetch as any).mockRejectedValue('connection reset');
+    await expect(draftPitch(profile, sponsor)).rejects.toThrow(/connection reset/);
   });
 });

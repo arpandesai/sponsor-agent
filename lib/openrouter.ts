@@ -146,3 +146,96 @@ export async function estimateFunding(profile: OrgProfile): Promise<FundingEstim
     return zero;
   }
 }
+
+export interface Sponsor {
+  name: string;
+  matchScore: number;
+  matchReason: string;
+  estimatedMinUsd: number;
+  estimatedMaxUsd: number;
+  category: string;
+}
+
+function toSponsor(raw: unknown): Sponsor | null {
+  const source = (raw ?? {}) as Record<string, unknown>;
+  if (typeof source.name !== 'string' || typeof source.matchReason !== 'string') return null;
+  return {
+    name: source.name,
+    matchScore: toFiniteNumber(source.matchScore, 0),
+    matchReason: source.matchReason,
+    estimatedMinUsd: toFiniteNumber(source.estimatedMinUsd, 0),
+    estimatedMaxUsd: toFiniteNumber(source.estimatedMaxUsd, 0),
+    category: typeof source.category === 'string' ? source.category : '',
+  };
+}
+
+export async function findSponsors(profile: OrgProfile): Promise<Sponsor[]> {
+  const json = await callOpenRouter({
+    model: MATCHING_MODEL,
+    messages: [
+      {
+        role: 'system',
+        content:
+          'You research real companies likely to sponsor a sports organisation, using web search. ' +
+          'Respond with ONLY a JSON object, no other text before or after it: ' +
+          '{ "sponsors": [ { "name": string, "matchScore": number (0-100), "matchReason": string ' +
+          '(one sentence explaining the match), "estimatedMinUsd": number, "estimatedMaxUsd": number, ' +
+          '"category": string (e.g. "Local Business", "National Brand") } ] }. ' +
+          'Return 8-12 real, plausible companies. Every entry must have all fields.',
+      },
+      { role: 'user', content: JSON.stringify(profile) },
+    ],
+  });
+
+  const content = json.choices?.[0]?.message?.content ?? '';
+  try {
+    const parsed = JSON.parse(stripCodeFence(content));
+    const list = Array.isArray(parsed?.sponsors) ? parsed.sponsors : [];
+    return list.map(toSponsor).filter((s: Sponsor | null): s is Sponsor => s !== null);
+  } catch {
+    return [];
+  }
+}
+
+export interface PitchDraft {
+  subject: string;
+  body: string;
+}
+
+function fallbackPitchDraft(profile: OrgProfile, sponsor: Sponsor): PitchDraft {
+  return {
+    subject: `Partnership opportunity: ${profile.name || 'our organisation'} x ${sponsor.name}`,
+    body:
+      `Hi ${sponsor.name} team,\n\n` +
+      `We're ${profile.name || 'a sports organisation'} and think there's a strong fit for a sponsorship ` +
+      `partnership. ${sponsor.matchReason}\n\nWould you be open to a short call to discuss?\n\nThanks,\n${profile.name || 'Our team'}`,
+  };
+}
+
+export async function draftPitch(profile: OrgProfile, sponsor: Sponsor): Promise<PitchDraft> {
+  const json = await callOpenRouter({
+    model: MATCHING_MODEL,
+    messages: [
+      {
+        role: 'system',
+        content:
+          'You write a short, warm sponsorship outreach email from a sports organisation to a potential ' +
+          'sponsor. Respond with ONLY a JSON object, no other text before or after it: ' +
+          '{ "subject": string, "body": string }. Reference the specific match reason given. Keep the body ' +
+          'under 150 words.',
+      },
+      { role: 'user', content: JSON.stringify({ profile, sponsor }) },
+    ],
+  });
+
+  const content = json.choices?.[0]?.message?.content ?? '';
+  try {
+    const parsed = JSON.parse(stripCodeFence(content));
+    if (typeof parsed?.subject === 'string' && typeof parsed?.body === 'string') {
+      return { subject: parsed.subject, body: parsed.body };
+    }
+    return fallbackPitchDraft(profile, sponsor);
+  } catch {
+    return fallbackPitchDraft(profile, sponsor);
+  }
+}
