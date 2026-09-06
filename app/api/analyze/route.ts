@@ -14,7 +14,9 @@ function sseEvent(event: string, data: unknown): string {
 }
 
 export async function POST(request: Request): Promise<Response> {
-  const { url } = await request.json();
+  const { searchParams } = new URL(request.url);
+  const bodyUrl = request.headers.get('content-length') !== '0' ? (await request.json().catch(() => ({}))).url : undefined;
+  const url = bodyUrl ?? searchParams.get('url');
 
   const stream = new ReadableStream({
     async start(controller) {
