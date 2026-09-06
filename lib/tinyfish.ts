@@ -1,42 +1,55 @@
 import { errorMessage } from './errors';
 
-export interface ScrapeResult {
-  url: string;
-  text: string;
-}
+// TinyFish's own /fetch and /search are both free, but access is routed
+// through Monid's marketplace proxy (https://api.monid.ai) rather than
+// TinyFish's direct API — that's the account this app has credentials for.
+const MONID_RUN_URL = 'https://api.monid.ai/v1/run';
 
-export async function scrapeUrl(url: string): Promise<ScrapeResult> {
-  const apiKey = process.env.TINYFISH_API_KEY;
-  if (!apiKey) throw new Error('TINYFISH_API_KEY is not set');
+async function callMonid(endpoint: '/fetch' | '/search', input: Record<string, unknown>): Promise<any> {
+  const apiKey = process.env.MONID_API_KEY;
+  if (!apiKey) throw new Error('MONID_API_KEY is not set');
 
   let response: Response;
   try {
-    response = await fetch('https://api.fetch.tinyfish.ai', {
+    response = await fetch(MONID_RUN_URL, {
       method: 'POST',
       headers: {
-        'X-API-Key': apiKey,
+        Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ urls: [url], format: 'markdown' }),
+      body: JSON.stringify({ provider: 'tinyfish', endpoint, input }),
     });
   } catch (err) {
-    throw new Error(`Could not reach TinyFish: ${errorMessage(err)}`);
+    throw new Error(`Could not reach Monid: ${errorMessage(err)}`);
   }
 
   let body: any;
   try {
     body = await response.json();
   } catch (err) {
-    throw new Error(`TinyFish returned an unreadable response (${response.status}): ${errorMessage(err)}`);
+    throw new Error(`Monid returned an unreadable response (${response.status}): ${errorMessage(err)}`);
   }
 
   if (!response.ok) {
-    throw new Error(body.message ?? `TinyFish request failed (${response.status})`);
+    throw new Error(body.message ?? `Monid request failed (${response.status})`);
   }
+  if (body.status !== 'COMPLETED') {
+    throw new Error(body.error?.message ?? body.message ?? `Monid run did not complete (status: ${body.status})`);
+  }
+  return body.output ?? {};
+}
 
-  const result = body.results?.[0];
+export interface ScrapeResult {
+  url: string;
+  text: string;
+}
+
+export async function scrapeUrl(url: string): Promise<ScrapeResult> {
+  const output = await callMonid('/fetch', { body: { urls: [url], format: 'markdown' } });
+
+  const result = output.results?.[0];
   if (!result || typeof result.text !== 'string') {
-    const error = body.errors?.[0];
+    const error = output.errors?.[0];
     throw new Error(error?.message ?? 'TinyFish returned no usable content for this URL');
   }
 
@@ -51,30 +64,9 @@ export interface SearchResult {
 }
 
 export async function searchWeb(query: string): Promise<SearchResult[]> {
-  const apiKey = process.env.TINYFISH_API_KEY;
-  if (!apiKey) throw new Error('TINYFISH_API_KEY is not set');
+  const output = await callMonid('/search', { queryParams: { query } });
 
-  let response: Response;
-  try {
-    response = await fetch(`https://api.search.tinyfish.ai?query=${encodeURIComponent(query)}`, {
-      headers: { 'X-API-Key': apiKey },
-    });
-  } catch (err) {
-    throw new Error(`Could not reach TinyFish: ${errorMessage(err)}`);
-  }
-
-  let body: any;
-  try {
-    body = await response.json();
-  } catch (err) {
-    throw new Error(`TinyFish returned an unreadable response (${response.status}): ${errorMessage(err)}`);
-  }
-
-  if (!response.ok) {
-    throw new Error(body.message ?? `TinyFish search request failed (${response.status})`);
-  }
-
-  const results = Array.isArray(body.results) ? body.results : [];
+  const results = Array.isArray(output.results) ? output.results : [];
   return results.map((r: any) => ({
     title: typeof r.title === 'string' ? r.title : '',
     snippet: typeof r.snippet === 'string' ? r.snippet : '',
