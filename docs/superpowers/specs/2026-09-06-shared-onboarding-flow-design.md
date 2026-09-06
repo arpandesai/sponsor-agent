@@ -16,17 +16,17 @@ State lives client-side (sessionStorage) between screens.
 ## Stack
 
 - Next.js (App Router) + TypeScript + Tailwind CSS
-- Firecrawl API for website scraping
+- TinyFish Fetch API (api.fetch.tinyfish.ai) for website scraping
 - OpenRouter for LLM calls (structured extraction + web-search-enabled
   matching)
 
-Env vars: `FIRECRAWL_API_KEY`, `OPENROUTER_API_KEY`.
+Env vars: `TINYFISH_API_KEY`, `OPENROUTER_API_KEY`.
 
 ## Architecture
 
 Two server routes, both under `app/api/`:
 
-- `POST /api/analyze` — body: `{ url }`. Server calls Firecrawl to
+- `POST /api/analyze` — body: `{ url }`. Server calls TinyFish's Fetch API to
   scrape the site, feeds cleaned text to an OpenRouter model with a
   structured-output schema (org name, location, sport, organisation
   type, audience segments, programs, suggested funding needs). Streams
@@ -76,7 +76,7 @@ Shared code:
 
 1. User submits URL on landing → navigate to `/analyze?url=...`.
 2. `/analyze` opens SSE to `/api/analyze`.
-3. Server: Firecrawl scrape → OpenRouter structured-extraction call →
+3. Server: TinyFish scrape → OpenRouter structured-extraction call →
    emit one SSE event per field as it's identified → emit `done` with
    full `OrgProfile` JSON.
 4. Client stores `OrgProfile` in `sessionStorage`, navigates to
@@ -89,7 +89,7 @@ Shared code:
 
 ## Error Handling
 
-- Invalid/unreachable URL or Firecrawl timeout: inline error on the
+- Invalid/unreachable URL or TinyFish timeout: inline error on the
   analysis screen with a retry action; never a dead end.
 - LLM extraction returns partial/low-confidence data: confirmation
   screen still opens; empty fields show a "we couldn't find this — fill
@@ -103,7 +103,7 @@ Shared code:
 - Unit tests for `lib/firecrawl.ts` and `lib/openrouter.ts` with mocked
   HTTP, and for `lib/org-profile.ts` parsing/validation logic.
 - Route tests for `/api/analyze` and `/api/funding` mocking upstream
-  Firecrawl/OpenRouter calls, covering success, partial-data, and
+  TinyFish/OpenRouter calls, covering success, partial-data, and
   failure paths.
 - Manual end-to-end run of the full flow (landing → analyze → confirm →
   dashboard) against a real club/organisation URL before considering
