@@ -26,6 +26,8 @@ function Logo() {
 
 export function Header() {
   const pathname = usePathname();
+  if (pathname.startsWith('/admin')) return null;
+
   const step = STEPS[pathname];
 
   return (

@@ -33,4 +33,16 @@ describe('Header', () => {
     render(<Header />);
     expect(screen.getByText('Step 3 of 3')).toBeInTheDocument();
   });
+
+  it('renders nothing on /admin routes — the admin section has its own chrome', () => {
+    mockPathname = '/admin';
+    const { container } = render(<Header />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('renders nothing on nested /admin/* routes', () => {
+    mockPathname = '/admin/calls';
+    const { container } = render(<Header />);
+    expect(container).toBeEmptyDOMElement();
+  });
 });
