@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { parseFundingEstimate, type FundingEstimate } from '@/lib/openrouter';
 
 function formatAmount(value: number): string {
@@ -11,6 +12,7 @@ function formatAmount(value: number): string {
 }
 
 export default function DashboardClient() {
+  const router = useRouter();
   const [estimate, setEstimate] = useState<FundingEstimate | null>(null);
 
   useEffect(() => {
@@ -43,10 +45,13 @@ export default function DashboardClient() {
             {formatAmount(estimate.sponsorship.minUsd)}–{formatAmount(estimate.sponsorship.maxUsd)}
           </p>
           <p className="mt-2 text-sm text-[var(--color-muted)]">{estimate.sponsorship.rationale}</p>
-          <button disabled className="pressable mt-4 rounded-[var(--radius-md)] border border-[var(--color-border)] px-4 py-2 text-sm opacity-60">
+          <button
+            type="button"
+            onClick={() => router.push('/sponsors')}
+            className="pressable mt-4 rounded-[var(--radius-md)] bg-[var(--color-accent)] px-4 py-2 text-sm text-[var(--color-accent-ink)]"
+          >
             View Sponsors
           </button>
-          <p className="mt-1 text-xs text-[var(--color-muted)]">Coming soon — sponsor list &amp; outreach.</p>
         </article>
 
         <article

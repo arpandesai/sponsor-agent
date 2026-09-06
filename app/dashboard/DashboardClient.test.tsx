@@ -1,5 +1,9 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+
+const push = vi.fn();
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
+
 import Page from './DashboardClient';
 
 describe('Dashboard page', () => {
@@ -22,15 +26,19 @@ describe('Dashboard page', () => {
     expect(screen.getByText(/\$20K–\$84K/)).toBeInTheDocument();
   });
 
-  it('deep-dive CTAs are present but disabled', () => {
+  it('Find Grants CTA is present but disabled with a "coming soon" caption', () => {
     render(<Page />);
-    expect(screen.getByRole('button', { name: /view sponsors/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /find grants/i })).toBeDisabled();
+    expect(screen.getByText(/grant list & applications/i)).toBeInTheDocument();
   });
 
-  it('explains why the deep-dive CTAs are disabled', () => {
+  it('View Sponsors is enabled and navigates to /sponsors', () => {
+    push.mockClear();
     render(<Page />);
-    expect(screen.getAllByText(/coming soon/i).length).toBeGreaterThan(0);
+    const viewSponsors = screen.getByRole('button', { name: /view sponsors/i });
+    expect(viewSponsors).not.toBeDisabled();
+    fireEvent.click(viewSponsors);
+    expect(push).toHaveBeenCalledWith('/sponsors');
   });
 
   it('formats amounts at or above $1M using an M suffix instead of a huge K value', () => {
