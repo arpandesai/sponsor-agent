@@ -8,6 +8,7 @@ export default function PitchClient() {
   const router = useRouter();
   const params = useParams<{ index: string }>();
   const index = Number(params.index);
+  const [sponsorName, setSponsorName] = useState<string | null>(null);
   const [subject, setSubject] = useState<string | null>(null);
   const [body, setBody] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -32,6 +33,7 @@ export default function PitchClient() {
       return;
     }
 
+    setSponsorName(sponsor.name);
     setSubject(null);
     setError(null);
 
@@ -51,9 +53,18 @@ export default function PitchClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- router.push identity is unstable under test mocks; index/attempt alone should retrigger the fetch
   }, [index, attempt]);
 
+  function copy(text: string) {
+    navigator.clipboard.writeText(text);
+  }
+
   return (
     <main className="mx-auto flex max-w-xl flex-col gap-6 px-6 py-24">
-      <h1 className="text-2xl font-semibold">Your pitch draft</h1>
+      <div>
+        <h1 className="text-2xl font-semibold">Your pitch draft{sponsorName ? ` for ${sponsorName}` : ''}</h1>
+        <p className="mt-1 text-sm text-[var(--color-muted)]">
+          This is a draft only — no email is sent. Edit it, then copy it out to send yourself.
+        </p>
+      </div>
 
       {error ? (
         <ErrorBanner message={error} onRetry={() => setAttempt((n) => n + 1)} />
@@ -65,23 +76,33 @@ export default function PitchClient() {
         </div>
       ) : (
         <>
-          <label className="flex flex-col gap-1 text-sm">
-            Subject
+          <div className="flex flex-col gap-1 text-sm">
+            <div className="flex items-center justify-between">
+              <label>Subject</label>
+              <button type="button" onClick={() => copy(subject)} className="pressable text-xs underline">
+                Copy Subject
+              </button>
+            </div>
             <input
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               className="rounded-[var(--radius-md)] border border-[var(--color-border)] px-3 py-2"
             />
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            Body
+          </div>
+          <div className="flex flex-col gap-1 text-sm">
+            <div className="flex items-center justify-between">
+              <label>Body</label>
+              <button type="button" onClick={() => copy(body)} className="pressable text-xs underline">
+                Copy Body
+              </button>
+            </div>
             <textarea
               value={body}
               onChange={(e) => setBody(e.target.value)}
               rows={10}
               className="rounded-[var(--radius-md)] border border-[var(--color-border)] px-3 py-2"
             />
-          </label>
+          </div>
         </>
       )}
     </main>

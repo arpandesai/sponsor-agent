@@ -46,6 +46,28 @@ describe('Pitch builder page', () => {
     expect(sentBody.profile.name).toBe('Prairie Fencing Club');
   });
 
+  it('shows which sponsor the draft is for and explains this is a draft, not a sent email', async () => {
+    render(<Page />);
+    await waitFor(() => expect(screen.getByDisplayValue('Partnership opportunity')).toBeInTheDocument());
+
+    expect(screen.getByRole('heading', { name: /prairie sports supply/i })).toBeInTheDocument();
+    expect(screen.getByText(/no email is sent/i)).toBeInTheDocument();
+  });
+
+  it('copies the subject and body to the clipboard', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+
+    render(<Page />);
+    await waitFor(() => expect(screen.getByDisplayValue('Partnership opportunity')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /copy subject/i }));
+    expect(writeText).toHaveBeenCalledWith('Partnership opportunity');
+
+    fireEvent.click(screen.getByRole('button', { name: /copy body/i }));
+    expect(writeText).toHaveBeenCalledWith('Hi Prairie Sports Supply team...');
+  });
+
   it('lets the user edit the draft fields', async () => {
     render(<Page />);
     await waitFor(() => expect(screen.getByDisplayValue('Partnership opportunity')).toBeInTheDocument());
