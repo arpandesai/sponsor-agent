@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { scrapeUrl } from './tinyfish';
+import { scrapeUrl, searchWeb } from './tinyfish';
 
 describe('scrapeUrl', () => {
   beforeEach(() => {
@@ -84,6 +84,70 @@ describe('scrapeUrl', () => {
   it('throws a readable error when the API key is missing, without calling fetch', async () => {
     delete process.env.TINYFISH_API_KEY;
     await expect(scrapeUrl('https://example.com')).rejects.toThrow(/TINYFISH_API_KEY/);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('searchWeb', () => {
+  beforeEach(() => {
+    process.env.TINYFISH_API_KEY = 'test-key';
+    global.fetch = vi.fn();
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('returns parsed search results on success', async () => {
+    (global.fetch as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        query: 'Saskatoon sports sponsorship',
+        results: [
+          { position: 1, site_name: 'Saskatoon Soccer Centre', title: 'Sponsors', snippet: 'Our sponsors include...', url: 'https://saskatoonsoccer.com/sponsors' },
+        ],
+        total_results: 1,
+        page: 1,
+      }),
+    });
+
+    const results = await searchWeb('Saskatoon sports sponsorship');
+    expect(results).toHaveLength(1);
+    expect(results[0].title).toBe('Sponsors');
+    expect(results[0].url).toBe('https://saskatoonsoccer.com/sponsors');
+
+    const calledUrl = (global.fetch as any).mock.calls[0][0] as string;
+    expect(calledUrl).toContain('api.search.tinyfish.ai');
+    expect(calledUrl).toContain(encodeURIComponent('Saskatoon sports sponsorship'));
+  });
+
+  it('throws a readable error when fetch rejects', async () => {
+    (global.fetch as any).mockRejectedValue(new Error('timeout'));
+    await expect(searchWeb('query')).rejects.toThrow(/timeout/);
+  });
+
+  it('throws a readable error on non-ok HTTP response', async () => {
+    (global.fetch as any).mockResolvedValue({ ok: false, status: 429, json: async () => ({ message: 'Rate limited' }) });
+    await expect(searchWeb('query')).rejects.toThrow(/Rate limited/);
+  });
+
+  it('throws a TinyFish-attributed error instead of a raw SyntaxError when the response body is not valid JSON', async () => {
+    (global.fetch as any).mockResolvedValue({
+      ok: true,
+      json: async () => {
+        throw new SyntaxError('bad json');
+      },
+    });
+    await expect(searchWeb('query')).rejects.toThrow(/TinyFish/);
+  });
+
+  it('returns an empty array instead of throwing when results is missing', async () => {
+    (global.fetch as any).mockResolvedValue({ ok: true, json: async () => ({ query: 'query' }) });
+    expect(await searchWeb('query')).toEqual([]);
+  });
+
+  it('throws a readable error when the API key is missing, without calling fetch', async () => {
+    delete process.env.TINYFISH_API_KEY;
+    await expect(searchWeb('query')).rejects.toThrow(/TINYFISH_API_KEY/);
     expect(global.fetch).not.toHaveBeenCalled();
   });
 });
