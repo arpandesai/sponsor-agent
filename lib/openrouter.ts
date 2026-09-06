@@ -176,17 +176,32 @@ export async function findSponsors(profile: OrgProfile): Promise<Sponsor[]> {
       {
         role: 'system',
         content:
-          'You are a sponsorship prospecting research assistant using web search. You work in two steps.\n\n' +
-          'INTERNAL RESEARCH (do not output this): search for and build a mental exclude-list of companies ' +
-          'that ALREADY sponsor or partner with this organisation today — check their website, annual reports, ' +
-          'press releases, and "thank you to our sponsors" pages.\n\n' +
-          'YOUR ACTUAL TASK: suggest 8-12 NEW prospective sponsor companies that are NOT on your exclude-list ' +
-          '— companies this organisation does not yet have a relationship with. For each, cite real evidence ' +
-          'for why they are a good prospect: a documented CSR or sponsorship program relevant to youth/' +
-          'community/amateur sports, or evidence they sponsor comparable organisations (same sport, similar ' +
-          'size, same region). Never a generic reason like "well-known local brand" with no evidence behind it.\n\n' +
-          'CRITICAL: if a company already sponsors this organisation, DO NOT include it in your output — you ' +
-          'are prospecting for new opportunities only, not cataloguing existing ones.\n\n' +
+          'You are a sponsorship prospecting research assistant using web search. Follow this exact ' +
+          'methodology — the first two steps are internal research, do not output them.\n\n' +
+          'STEP 1 (internal): search for and build a mental exclude-list of companies that ALREADY sponsor ' +
+          'or partner with this organisation today — check their website, annual reports, press releases, ' +
+          'and "thank you to our sponsors" pages.\n\n' +
+          'STEP 2 (internal) — Local Sponsor Graph: search for OTHER sports organisations in the same city/' +
+          'region as this one, in DIFFERENT sports (e.g. if this is a fencing club in Saskatoon, search for ' +
+          'Saskatoon soccer clubs, hockey clubs, swimming clubs, gymnastics clubs, athletics clubs). For each ' +
+          'one you find, search for its sponsors/partners. A company that already sponsors multiple local ' +
+          'sports organisations has demonstrated, repeated willingness to fund local sport — that is a far ' +
+          'stronger signal than merely being "a company in the right industry with no track record."\n\n' +
+          'Use these search angles across steps 1-2:\n' +
+          '- Location + sport: "<city>" sports sponsorship, "<city>" youth sport sponsor, "<region>" sports sponsorship\n' +
+          '- Location + community: "<city>" community sponsorship, "<city>" community investment, "<city>" sponsor youth\n' +
+          '- Competitor-sport mining: "<city> <other sport> club sponsors" for several other sports in the same city\n' +
+          '- Industry-specific: "<city>" credit union sponsorship, "<city>" dealership sports sponsor, ' +
+          '"<city>" law firm sports sponsorship, "<city>" insurance community sponsorship, "<city>" dental youth sports sponsor\n\n' +
+          'STEP 3 (your actual output): suggest 8-12 NEW prospective sponsor companies — prefer real local/' +
+          'regional businesses actually operating in this organisation\'s city over generic national brand ' +
+          'guesses, unless a national brand has documented local/community sponsorship activity in this ' +
+          'specific region. None may already sponsor this organisation (your step-1 exclude-list).\n\n' +
+          'Prioritize and clearly flag any candidate you found sponsoring 2+ other local sports organisations ' +
+          'in step 2 — that is your strongest signal. For every entry, matchReason must cite the specific ' +
+          'evidence: which other local sports organisation(s) they sponsor (for graph-matched candidates), or ' +
+          'their documented CSR/community-sponsorship program (for others). Never a generic reason with no ' +
+          'evidence behind it.\n\n' +
           'Respond with ONLY a JSON object, no other text before or after it: ' +
           '{ "sponsors": [ { "name": string, "matchScore": number (0-100), "matchReason": string, ' +
           '"estimatedMinUsd": number, "estimatedMaxUsd": number, ' +
