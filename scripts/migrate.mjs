@@ -14,20 +14,28 @@ if (!connectionString) {
 
 const pool = new Pool({ connectionString });
 
-const { rows } = await pool.query(`
-  SELECT EXISTS (
-    SELECT 1 FROM information_schema.tables WHERE table_name = 'clubs'
-  ) AS exists
-`);
+// Each migration is independently guarded — applied only if guardTable
+// doesn't exist yet — so a later migration can be added without re-running
+// or touching earlier ones.
+const MIGRATIONS = [
+  { file: '001_schema.sql', guardTable: 'clubs' },
+  { file: '002_api_call_logs.sql', guardTable: 'api_call_logs' },
+];
 
-if (rows[0].exists) {
-  console.log('Schema already applied (clubs table exists) — skipping.');
-  await pool.end();
-  process.exit(0);
+for (const { file, guardTable } of MIGRATIONS) {
+  const { rows } = await pool.query(
+    `SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = $1) AS exists`,
+    [guardTable]
+  );
+
+  if (rows[0].exists) {
+    console.log(`${file}: already applied (${guardTable} exists) — skipping.`);
+    continue;
+  }
+
+  const sql = fs.readFileSync(path.join(__dirname, '..', 'db', file), 'utf8');
+  await pool.query(sql);
+  console.log(`${file}: applied successfully.`);
 }
 
-const schemaSql = fs.readFileSync(path.join(__dirname, '../db/schema.sql'), 'utf8');
-await pool.query(schemaSql);
-
-console.log('Schema applied successfully.');
 await pool.end();
