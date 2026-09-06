@@ -13,11 +13,7 @@ function sseEvent(event: string, data: unknown): string {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 }
 
-export async function POST(request: Request): Promise<Response> {
-  const { searchParams } = new URL(request.url);
-  const bodyUrl = request.headers.get('content-length') !== '0' ? (await request.json().catch(() => ({}))).url : undefined;
-  const url = bodyUrl ?? searchParams.get('url');
-
+function streamAnalysis(url: string | null): Response {
   const stream = new ReadableStream({
     async start(controller) {
       const encoder = new TextEncoder();
@@ -25,7 +21,7 @@ export async function POST(request: Request): Promise<Response> {
         controller.enqueue(encoder.encode(sseEvent(event, data)));
 
       try {
-        const scraped = await scrapeUrl(url);
+        const scraped = await scrapeUrl(url as string);
         const profile = await extractOrgProfile(scraped.text);
 
         for (const label of STEP_LABELS) {
@@ -47,4 +43,18 @@ export async function POST(request: Request): Promise<Response> {
       Connection: 'keep-alive',
     },
   });
+}
+
+// Browser EventSource always issues GET — this is what the analysis screen actually connects to.
+export async function GET(request: Request): Promise<Response> {
+  const { searchParams } = new URL(request.url);
+  return streamAnalysis(searchParams.get('url'));
+}
+
+// Kept for direct API callers that prefer POST with a JSON body.
+export async function POST(request: Request): Promise<Response> {
+  const { searchParams } = new URL(request.url);
+  const bodyUrl = request.headers.get('content-length') !== '0' ? (await request.json().catch(() => ({}))).url : undefined;
+  const url = bodyUrl ?? searchParams.get('url');
+  return streamAnalysis(url);
 }

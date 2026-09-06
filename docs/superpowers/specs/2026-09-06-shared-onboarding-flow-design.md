@@ -103,14 +103,16 @@ Shared code:
 
 ## Testing
 
-- Unit tests for `lib/firecrawl.ts` and `lib/openrouter.ts` with mocked
-  HTTP, and for `lib/org-profile.ts` parsing/validation logic.
+- Unit tests for `lib/firecrawl.ts`, `lib/tinyfish.ts`, `lib/scrape.ts`
+  (Firecrawl-first/TinyFish-fallback orchestrator), and `lib/openrouter.ts`
+  with mocked HTTP, and for `lib/org-profile.ts` parsing/validation logic.
 - Route tests for `/api/analyze` and `/api/funding` mocking upstream
-  TinyFish/OpenRouter calls, covering success, partial-data, and
-  failure paths.
-- Manual end-to-end run of the full flow (landing → analyze → confirm →
-  dashboard) against a real club/organisation URL before considering
-  this sub-project done.
+  scrape/OpenRouter calls, covering success, partial-data, and failure
+  paths.
+- `e2e/onboarding.spec.ts` (Playwright): a real end-to-end run of the
+  full flow (landing → analyze → confirm → dashboard) against a live
+  organisation URL and the real Firecrawl/TinyFish/OpenRouter APIs — run
+  via `npm run test:e2e`, requires real API keys in `.env.local`.
 
 ## Out of Scope (this spec)
 

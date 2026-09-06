@@ -31,6 +31,18 @@ describe('extractOrgProfile', () => {
     expect(profile.audience).toEqual(['Youth', 'Adults']);
   });
 
+  it('parses model output even when wrapped in a ```json code fence', async () => {
+    const fenced = '```json\n{"name":"Rowing Australia","location":"Australia","sport":"Rowing","organisationType":"National Governing Body","audience":[],"programs":[],"fundingNeeds":[]}\n```';
+    (global.fetch as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: fenced } }] }),
+    });
+
+    const profile = await extractOrgProfile('Rowing Australia is the national governing body...');
+    expect(profile.name).toBe('Rowing Australia');
+    expect(profile.sport).toBe('Rowing');
+  });
+
   it('throws a readable error on API failure', async () => {
     (global.fetch as any).mockResolvedValue({
       ok: false,

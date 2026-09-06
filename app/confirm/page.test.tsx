@@ -53,4 +53,20 @@ describe('Confirm page', () => {
     await waitFor(() => expect(push).toHaveBeenCalledWith('/dashboard'));
     expect(JSON.parse(sessionStorage.getItem('fundingEstimate')!).sponsorship.count).toBe(38);
   });
+
+  it('shows an inline error with retry when /api/funding fails, without navigating', async () => {
+    (global.fetch as any).mockResolvedValue({
+      ok: false,
+      status: 502,
+      json: async () => ({ error: 'Provider returned error' }),
+    });
+
+    render(<Page />);
+    fireEvent.click(screen.getByRole('button', { name: /looks good/i }));
+
+    await waitFor(() => expect(screen.getByText(/Provider returned error/)).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
+    expect(push).not.toHaveBeenCalled();
+    expect(sessionStorage.getItem('fundingEstimate')).toBeNull();
+  });
 });

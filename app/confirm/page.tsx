@@ -19,6 +19,7 @@ export default function Page() {
   const router = useRouter();
   const [profile, setProfile] = useState<OrgProfile>(emptyOrgProfile());
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const stored = sessionStorage.getItem('orgProfile');
@@ -31,12 +32,18 @@ export default function Page() {
 
   async function handleConfirm() {
     setSubmitting(true);
+    setError(null);
     const response = await fetch('/api/funding', {
       method: 'POST',
       body: JSON.stringify(profile),
     });
-    const estimate = await response.json();
-    sessionStorage.setItem('fundingEstimate', JSON.stringify(estimate));
+    const body = await response.json();
+    if (!response.ok) {
+      setError(body.error ?? 'Something went wrong finding funding.');
+      setSubmitting(false);
+      return;
+    }
+    sessionStorage.setItem('fundingEstimate', JSON.stringify(body));
     router.push('/dashboard');
   }
 
@@ -78,14 +85,27 @@ export default function Page() {
         </div>
       </div>
 
-      <button
-        type="button"
-        disabled={submitting}
-        onClick={handleConfirm}
-        className="pressable rounded-[var(--radius-md)] bg-[var(--color-accent)] px-6 py-3 font-medium text-[var(--color-accent-ink)] disabled:opacity-60"
-      >
-        {submitting ? 'Finding funding…' : 'Looks Good — Find Funding'}
-      </button>
+      {error ? (
+        <div className="rounded-[var(--radius-md)] border border-[var(--color-border)] p-4">
+          <p className="text-sm">{error}</p>
+          <button
+            type="button"
+            className="pressable mt-3 rounded-[var(--radius-md)] bg-[var(--color-accent)] px-4 py-2 text-sm text-[var(--color-accent-ink)]"
+            onClick={handleConfirm}
+          >
+            Retry
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          disabled={submitting}
+          onClick={handleConfirm}
+          className="pressable rounded-[var(--radius-md)] bg-[var(--color-accent)] px-6 py-3 font-medium text-[var(--color-accent-ink)] disabled:opacity-60"
+        >
+          {submitting ? 'Finding funding…' : 'Looks Good — Find Funding'}
+        </button>
+      )}
     </main>
   );
 }

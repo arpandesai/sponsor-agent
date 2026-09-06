@@ -28,6 +28,12 @@ async function callOpenRouter(body: Record<string, unknown>): Promise<any> {
   return json;
 }
 
+// Some models wrap JSON replies in ```json fences even when json_object mode is requested.
+function stripCodeFence(content: string): string {
+  const match = content.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
+  return match ? match[1] : content;
+}
+
 export async function extractOrgProfile(siteText: string): Promise<OrgProfile> {
   const json = await callOpenRouter({
     model: EXTRACTION_MODEL,
@@ -50,7 +56,7 @@ export async function extractOrgProfile(siteText: string): Promise<OrgProfile> {
   const content = json.choices?.[0]?.message?.content ?? '{}';
   let parsed: unknown;
   try {
-    parsed = JSON.parse(content);
+    parsed = JSON.parse(stripCodeFence(content));
   } catch {
     parsed = {};
   }
@@ -74,13 +80,14 @@ function zeroFundingEstimate(): FundingEstimate {
 export async function estimateFunding(profile: OrgProfile): Promise<FundingEstimate> {
   const json = await callOpenRouter({
     model: MATCHING_MODEL,
-    response_format: { type: 'json_object' },
+    // perplexity/sonar rejects response_format: json_object (only supports
+    // json_schema or text) — rely on the prompt + stripCodeFence fallback instead.
     messages: [
       {
         role: 'system',
         content:
           'You research real sponsorship and grant funding opportunities using web search. ' +
-          'Given a sports organisation profile, respond with ONLY a JSON object: ' +
+          'Respond with ONLY a JSON object, no other text before or after it: ' +
           '{ "sponsorship": { "count": number, "minUsd": number, "maxUsd": number, "rationale": string }, ' +
           '"grants": { "count": number, "minUsd": number, "maxUsd": number, "rationale": string } }. ' +
           'count is the number of plausible real matches you found. rationale is one sentence ' +
@@ -92,7 +99,7 @@ export async function estimateFunding(profile: OrgProfile): Promise<FundingEstim
 
   const content = json.choices?.[0]?.message?.content ?? '';
   try {
-    const parsed = JSON.parse(content);
+    const parsed = JSON.parse(stripCodeFence(content));
     return {
       sponsorship: { ...zeroFundingEstimate().sponsorship, ...parsed.sponsorship },
       grants: { ...zeroFundingEstimate().grants, ...parsed.grants },
