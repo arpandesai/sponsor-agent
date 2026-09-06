@@ -1,4 +1,5 @@
 import { errorMessage } from './errors';
+import { logApiCall } from './db';
 
 export interface ScrapeResult {
   url: string;
@@ -9,6 +10,32 @@ export async function scrapeUrl(url: string): Promise<ScrapeResult> {
   const apiKey = process.env.FIRECRAWL_API_KEY;
   if (!apiKey) throw new Error('FIRECRAWL_API_KEY is not set');
 
+  const startedAt = Date.now();
+
+  try {
+    const result = await doScrape(url, apiKey);
+    logApiCall({
+      provider: 'firecrawl',
+      endpoint: '/v1/scrape',
+      status: 'success',
+      latencyMs: Date.now() - startedAt,
+      requestSummary: { url },
+    });
+    return result;
+  } catch (err) {
+    logApiCall({
+      provider: 'firecrawl',
+      endpoint: '/v1/scrape',
+      status: 'error',
+      errorMessage: errorMessage(err),
+      latencyMs: Date.now() - startedAt,
+      requestSummary: { url },
+    });
+    throw err;
+  }
+}
+
+async function doScrape(url: string, apiKey: string): Promise<ScrapeResult> {
   let response: Response;
   try {
     response = await fetch('https://api.firecrawl.dev/v1/scrape', {
