@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 vi.mock('./tinyfish', () => ({ searchWeb: vi.fn() }));
+vi.mock('./db', () => ({ logApiCall: vi.fn().mockResolvedValue(undefined) }));
 
 import { extractOrgProfile, estimateFunding, parseFundingEstimate, findSponsors, draftPitch, buildSponsorSearchQueries, type Sponsor } from './openrouter';
 import type { OrgProfile } from './org-profile';
 import { searchWeb } from './tinyfish';
+import { logApiCall } from './db';
 
 describe('extractOrgProfile', () => {
   beforeEach(() => {
@@ -444,5 +446,47 @@ describe('draftPitch', () => {
   it('preserves the underlying message when fetch rejects with a non-Error value', async () => {
     (global.fetch as any).mockRejectedValue('connection reset');
     await expect(draftPitch(profile, sponsor)).rejects.toThrow(/connection reset/);
+  });
+});
+
+describe('callOpenRouter logging (exercised via extractOrgProfile)', () => {
+  beforeEach(() => {
+    process.env.OPENROUTER_API_KEY = 'test-key';
+    global.fetch = vi.fn();
+    (logApiCall as any).mockClear();
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('logs a success call with the real usage.cost from the response', async () => {
+    (global.fetch as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: '{}' } }],
+        usage: { cost: 0.001308 },
+      }),
+    });
+
+    await extractOrgProfile('site text');
+
+    expect(logApiCall).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: 'openrouter', model: 'anthropic/claude-sonnet-4.5', status: 'success', costUsd: 0.001308 })
+    );
+  });
+
+  it('logs a failed call with the error message and cost undefined', async () => {
+    (global.fetch as any).mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => ({ error: { message: 'upstream error' } }),
+    });
+
+    await expect(extractOrgProfile('site text')).rejects.toThrow();
+
+    expect(logApiCall).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: 'openrouter', status: 'error', errorMessage: expect.stringContaining('upstream error') })
+    );
+    expect((logApiCall as any).mock.calls[0][0].costUsd).toBeUndefined();
   });
 });

@@ -1,6 +1,7 @@
 import { parseOrgProfile, type OrgProfile } from './org-profile';
 import { errorMessage } from './errors';
 import { searchWeb } from './tinyfish';
+import { logApiCall } from './db';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const EXTRACTION_MODEL = 'anthropic/claude-sonnet-4.5';
@@ -9,6 +10,35 @@ async function callOpenRouter(body: Record<string, unknown>): Promise<any> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error('OPENROUTER_API_KEY is not set');
 
+  const startedAt = Date.now();
+  const model = typeof body.model === 'string' ? body.model : undefined;
+  const messages = Array.isArray(body.messages) ? body.messages : [];
+
+  try {
+    const json = await doCallOpenRouter(apiKey, body);
+    logApiCall({
+      provider: 'openrouter',
+      model,
+      status: 'success',
+      latencyMs: Date.now() - startedAt,
+      costUsd: typeof json.usage?.cost === 'number' ? json.usage.cost : undefined,
+      requestSummary: { messageCount: messages.length },
+    });
+    return json;
+  } catch (err) {
+    logApiCall({
+      provider: 'openrouter',
+      model,
+      status: 'error',
+      errorMessage: errorMessage(err),
+      latencyMs: Date.now() - startedAt,
+      requestSummary: { messageCount: messages.length },
+    });
+    throw err;
+  }
+}
+
+async function doCallOpenRouter(apiKey: string, body: Record<string, unknown>): Promise<any> {
   let response: Response;
   try {
     response = await fetch(OPENROUTER_URL, {
