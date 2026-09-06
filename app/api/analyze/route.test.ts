@@ -5,7 +5,7 @@ vi.mock('@/lib/openrouter', () => ({ extractOrgProfile: vi.fn() }));
 
 import { scrapeUrl } from '@/lib/scrape';
 import { extractOrgProfile } from '@/lib/openrouter';
-import { GET, POST } from './route';
+import { GET } from './route';
 
 async function readAllEvents(response: Response): Promise<string> {
   const reader = response.body!.getReader();
@@ -19,7 +19,7 @@ async function readAllEvents(response: Response): Promise<string> {
   return output;
 }
 
-describe('POST /api/analyze', () => {
+describe('GET /api/analyze', () => {
   beforeEach(() => {
     vi.resetAllMocks();
   });
@@ -39,11 +39,8 @@ describe('POST /api/analyze', () => {
       fundingNeeds: [],
     });
 
-    const request = new Request('http://localhost/api/analyze', {
-      method: 'POST',
-      body: JSON.stringify({ url: 'https://example.com' }),
-    });
-    const response = await POST(request);
+    const request = new Request('http://localhost/api/analyze?url=https%3A%2F%2Fexample.com');
+    const response = await GET(request);
     const output = await readAllEvents(response);
 
     expect(output).toContain('event: step');
@@ -55,11 +52,8 @@ describe('POST /api/analyze', () => {
   it('streams an error event when scraping fails', async () => {
     (scrapeUrl as any).mockRejectedValue(new Error('Could not reach TinyFish: timeout'));
 
-    const request = new Request('http://localhost/api/analyze', {
-      method: 'POST',
-      body: JSON.stringify({ url: 'https://example.com' }),
-    });
-    const response = await POST(request);
+    const request = new Request('http://localhost/api/analyze?url=https%3A%2F%2Fexample.com');
+    const response = await GET(request);
     const output = await readAllEvents(response);
 
     expect(output).toContain('event: error');
@@ -69,11 +63,8 @@ describe('POST /api/analyze', () => {
   it('streams a readable error event, not a raw undefined message, when a dependency rejects with a non-Error value', async () => {
     (scrapeUrl as any).mockRejectedValue('connection reset');
 
-    const request = new Request('http://localhost/api/analyze', {
-      method: 'POST',
-      body: JSON.stringify({ url: 'https://example.com' }),
-    });
-    const response = await POST(request);
+    const request = new Request('http://localhost/api/analyze?url=https%3A%2F%2Fexample.com');
+    const response = await GET(request);
     const output = await readAllEvents(response);
 
     expect(output).toContain('event: error');
@@ -81,7 +72,7 @@ describe('POST /api/analyze', () => {
     expect(output).not.toContain('undefined');
   });
 
-  it('GET streams an error and never calls scrapeUrl when the url query param is missing entirely', async () => {
+  it('streams an error and never calls scrapeUrl when the url query param is missing entirely', async () => {
     const request = new Request('http://localhost/api/analyze');
     const response = await GET(request);
     const output = await readAllEvents(response);
@@ -90,7 +81,7 @@ describe('POST /api/analyze', () => {
     expect(scrapeUrl).not.toHaveBeenCalled();
   });
 
-  it('GET streams an error and never calls scrapeUrl for an empty url query param', async () => {
+  it('streams an error and never calls scrapeUrl for an empty url query param', async () => {
     const request = new Request('http://localhost/api/analyze?url=');
     const response = await GET(request);
     const output = await readAllEvents(response);
