@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-vi.mock('@/lib/tinyfish', () => ({ scrapeUrl: vi.fn() }));
+vi.mock('@/lib/scrape', () => ({ scrapeUrl: vi.fn() }));
 vi.mock('@/lib/openrouter', () => ({ extractOrgProfile: vi.fn() }));
 
-import { scrapeUrl } from '@/lib/tinyfish';
+import { scrapeUrl } from '@/lib/scrape';
 import { extractOrgProfile } from '@/lib/openrouter';
 import { POST } from './route';
 

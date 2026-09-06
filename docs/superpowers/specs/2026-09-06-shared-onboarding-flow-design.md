@@ -16,17 +16,20 @@ State lives client-side (sessionStorage) between screens.
 ## Stack
 
 - Next.js (App Router) + TypeScript + Tailwind CSS
-- TinyFish Fetch API (api.fetch.tinyfish.ai) for website scraping
+- Firecrawl API for website scraping, with TinyFish Fetch API
+  (api.fetch.tinyfish.ai) as an automatic fallback if Firecrawl fails
+  (missing key or request error) — see `lib/scrape.ts`
 - OpenRouter for LLM calls (structured extraction + web-search-enabled
   matching)
 
-Env vars: `TINYFISH_API_KEY`, `OPENROUTER_API_KEY`.
+Env vars: `FIRECRAWL_API_KEY`, `TINYFISH_API_KEY`, `OPENROUTER_API_KEY`.
 
 ## Architecture
 
 Two server routes, both under `app/api/`:
 
-- `POST /api/analyze` — body: `{ url }`. Server calls TinyFish's Fetch API to
+- `POST /api/analyze` — body: `{ url }`. Server calls `lib/scrape.ts`
+  (Firecrawl first, TinyFish fallback) to
   scrape the site, feeds cleaned text to an OpenRouter model with a
   structured-output schema (org name, location, sport, organisation
   type, audience segments, programs, suggested funding needs). Streams
