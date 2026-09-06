@@ -3,7 +3,7 @@ import { ADMIN_COOKIE_NAME, hashAdminPassword } from '@/lib/adminAuth';
 
 export const config = { matcher: ['/admin/:path*'] };
 
-export async function middleware(request: NextRequest): Promise<NextResponse> {
+export async function proxy(request: NextRequest): Promise<NextResponse> {
   if (request.nextUrl.pathname === '/admin/login') {
     return NextResponse.next();
   }

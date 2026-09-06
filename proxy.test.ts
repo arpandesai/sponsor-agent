@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { NextRequest } from 'next/server';
-import { middleware } from './middleware';
+import { proxy as middleware } from './proxy';
 import { ADMIN_COOKIE_NAME, hashAdminPassword } from '@/lib/adminAuth';
 
 describe('middleware', () => {
