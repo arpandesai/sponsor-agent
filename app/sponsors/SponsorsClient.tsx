@@ -33,8 +33,9 @@ export default function SponsorsClient() {
         setError(body.error ?? 'Something went wrong finding sponsors.');
         return;
       }
-      setSponsors(body);
-      sessionStorage.setItem('sponsorList', JSON.stringify(body));
+      const prospects = (body as Sponsor[]).filter((s) => s.relationship !== 'confirmed_existing');
+      setSponsors(prospects);
+      sessionStorage.setItem('sponsorList', JSON.stringify(prospects));
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- router.push identity is unstable under test mocks; attempt alone should retrigger the fetch
   }, [attempt]);

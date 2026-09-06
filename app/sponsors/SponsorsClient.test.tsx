@@ -62,4 +62,20 @@ describe('Sponsors list page', () => {
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/Provider returned error/));
     expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
   });
+
+  it('filters out confirmed_existing sponsors — only prospects are shown, clickable, and stored', async () => {
+    const mixed = [
+      { name: 'Already Sponsors Us', relationship: 'confirmed_existing', matchScore: 95, matchReason: 'r', estimatedMinUsd: 0, estimatedMaxUsd: 0, category: 'Local Business' },
+      { name: 'New Prospect', relationship: 'prospect', matchScore: 80, matchReason: 'r', estimatedMinUsd: 1000, estimatedMaxUsd: 5000, category: 'Local Business' },
+    ];
+    (global.fetch as any).mockResolvedValue({ ok: true, json: async () => mixed });
+
+    render(<Page />);
+    await waitFor(() => expect(screen.getByText('New Prospect')).toBeInTheDocument());
+
+    expect(screen.queryByText('Already Sponsors Us')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('New Prospect'));
+    expect(push).toHaveBeenCalledWith('/sponsors/0');
+    expect(JSON.parse(sessionStorage.getItem('sponsorList')!)).toEqual([mixed[1]]);
+  });
 });
