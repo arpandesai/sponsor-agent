@@ -27,4 +27,17 @@ describe('Dashboard page', () => {
     expect(screen.getByRole('button', { name: /view sponsors/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /find grants/i })).toBeDisabled();
   });
+
+  it('formats amounts at or above $1M using an M suffix instead of a huge K value', () => {
+    sessionStorage.setItem(
+      'fundingEstimate',
+      JSON.stringify({
+        sponsorship: { count: 3, minUsd: 3000, maxUsd: 3565000, rationale: 'r' },
+        grants: { count: 4, minUsd: 2000, maxUsd: 9437000, rationale: 'r' },
+      })
+    );
+    render(<Page />);
+    expect(screen.getByText(/\$3K–\$3\.6M/)).toBeInTheDocument();
+    expect(screen.getByText(/\$2K–\$9\.4M/)).toBeInTheDocument();
+  });
 });
