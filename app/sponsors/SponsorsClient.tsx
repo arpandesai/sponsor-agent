@@ -36,7 +36,8 @@ export default function SponsorsClient() {
       setSponsors(body);
       sessionStorage.setItem('sponsorList', JSON.stringify(body));
     })();
-  }, [router, attempt]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- router.push identity is unstable under test mocks; attempt alone should retrigger the fetch
+  }, [attempt]);
 
   return (
     <main className="mx-auto flex max-w-3xl flex-col gap-6 px-6 py-24">
