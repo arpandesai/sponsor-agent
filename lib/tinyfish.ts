@@ -1,14 +1,47 @@
 import { errorMessage } from './errors';
+import { logApiCall } from './db';
 
 // TinyFish's own /fetch and /search are both free, but access is routed
 // through Monid's marketplace proxy (https://api.monid.ai) rather than
 // TinyFish's direct API — that's the account this app has credentials for.
 const MONID_RUN_URL = 'https://api.monid.ai/v1/run';
 
+function toUsd(reportedCost: { value?: number; unit?: string } | undefined): number | undefined {
+  if (!reportedCost || typeof reportedCost.value !== 'number') return undefined;
+  return reportedCost.unit === 'MICRO_DOLLAR' ? reportedCost.value / 1_000_000 : reportedCost.value;
+}
+
 async function callMonid(endpoint: '/fetch' | '/search', input: Record<string, unknown>): Promise<any> {
   const apiKey = process.env.MONID_API_KEY;
   if (!apiKey) throw new Error('MONID_API_KEY is not set');
 
+  const startedAt = Date.now();
+
+  try {
+    const body = await doCallMonid(apiKey, endpoint, input);
+    logApiCall({
+      provider: 'monid_tinyfish',
+      endpoint,
+      status: 'success',
+      latencyMs: Date.now() - startedAt,
+      costUsd: toUsd(body.billing?.reportedCost),
+      requestSummary: input,
+    });
+    return body.output ?? {};
+  } catch (err) {
+    logApiCall({
+      provider: 'monid_tinyfish',
+      endpoint,
+      status: 'error',
+      errorMessage: errorMessage(err),
+      latencyMs: Date.now() - startedAt,
+      requestSummary: input,
+    });
+    throw err;
+  }
+}
+
+async function doCallMonid(apiKey: string, endpoint: '/fetch' | '/search', input: Record<string, unknown>): Promise<any> {
   let response: Response;
   try {
     response = await fetch(MONID_RUN_URL, {
@@ -36,7 +69,7 @@ async function callMonid(endpoint: '/fetch' | '/search', input: Record<string, u
   if (body.status !== 'COMPLETED') {
     throw new Error(body.error?.message ?? body.message ?? `Monid run did not complete (status: ${body.status})`);
   }
-  return body.output ?? {};
+  return body;
 }
 
 export interface ScrapeResult {

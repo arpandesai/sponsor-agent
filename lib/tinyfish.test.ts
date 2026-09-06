@@ -1,10 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+vi.mock('./db', () => ({ logApiCall: vi.fn().mockResolvedValue(undefined) }));
+
 import { scrapeUrl, searchWeb } from './tinyfish';
+import { logApiCall } from './db';
 
 describe('scrapeUrl', () => {
   beforeEach(() => {
     process.env.MONID_API_KEY = 'test-key';
     global.fetch = vi.fn();
+    (logApiCall as any).mockClear();
   });
   afterEach(() => {
     vi.restoreAllMocks();
@@ -94,11 +99,43 @@ describe('scrapeUrl', () => {
     await expect(scrapeUrl('https://example.com')).rejects.toThrow(/MONID_API_KEY/);
     expect(global.fetch).not.toHaveBeenCalled();
   });
+
+  it('logs a success call with cost converted from MICRO_DOLLAR to USD', async () => {
+    (global.fetch as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        status: 'COMPLETED',
+        output: { results: [{ url: 'https://example.com', text: 'content' }], errors: [] },
+        billing: { reportedCost: { currency: 'USD', value: 1500, unit: 'MICRO_DOLLAR' } },
+      }),
+    });
+
+    await scrapeUrl('https://example.com');
+
+    expect(logApiCall).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: 'monid_tinyfish', endpoint: '/fetch', status: 'success', costUsd: 0.0015 })
+    );
+  });
+
+  it('logs a failed call with the error message', async () => {
+    (global.fetch as any).mockResolvedValue({
+      ok: false,
+      status: 402,
+      json: async () => ({ message: 'Payment required' }),
+    });
+
+    await expect(scrapeUrl('https://example.com')).rejects.toThrow();
+
+    expect(logApiCall).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: 'monid_tinyfish', endpoint: '/fetch', status: 'error', errorMessage: expect.stringContaining('Payment required') })
+    );
+  });
 });
 
 describe('searchWeb', () => {
   beforeEach(() => {
     process.env.MONID_API_KEY = 'test-key';
+    (logApiCall as any).mockClear();
     global.fetch = vi.fn();
   });
   afterEach(() => {
@@ -169,5 +206,18 @@ describe('searchWeb', () => {
     delete process.env.MONID_API_KEY;
     await expect(searchWeb('query')).rejects.toThrow(/MONID_API_KEY/);
     expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('logs a success call for /search with endpoint set correctly', async () => {
+    (global.fetch as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: 'COMPLETED', output: { results: [] }, billing: { reportedCost: { value: 0, unit: 'MICRO_DOLLAR' } } }),
+    });
+
+    await searchWeb('query');
+
+    expect(logApiCall).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: 'monid_tinyfish', endpoint: '/search', status: 'success', costUsd: 0 })
+    );
   });
 });
