@@ -56,3 +56,48 @@ export async function extractOrgProfile(siteText: string): Promise<OrgProfile> {
   }
   return parseOrgProfile(parsed);
 }
+
+const MATCHING_MODEL = 'perplexity/sonar';
+
+export interface FundingEstimate {
+  sponsorship: { count: number; minUsd: number; maxUsd: number; rationale: string };
+  grants: { count: number; minUsd: number; maxUsd: number; rationale: string };
+}
+
+function zeroFundingEstimate(): FundingEstimate {
+  return {
+    sponsorship: { count: 0, minUsd: 0, maxUsd: 0, rationale: '' },
+    grants: { count: 0, minUsd: 0, maxUsd: 0, rationale: '' },
+  };
+}
+
+export async function estimateFunding(profile: OrgProfile): Promise<FundingEstimate> {
+  const json = await callOpenRouter({
+    model: MATCHING_MODEL,
+    response_format: { type: 'json_object' },
+    messages: [
+      {
+        role: 'system',
+        content:
+          'You research real sponsorship and grant funding opportunities using web search. ' +
+          'Given a sports organisation profile, respond with ONLY a JSON object: ' +
+          '{ "sponsorship": { "count": number, "minUsd": number, "maxUsd": number, "rationale": string }, ' +
+          '"grants": { "count": number, "minUsd": number, "maxUsd": number, "rationale": string } }. ' +
+          'count is the number of plausible real matches you found. rationale is one sentence ' +
+          'explaining the estimate, citing the kind of sources used.',
+      },
+      { role: 'user', content: JSON.stringify(profile) },
+    ],
+  });
+
+  const content = json.choices?.[0]?.message?.content ?? '';
+  try {
+    const parsed = JSON.parse(content);
+    return {
+      sponsorship: { ...zeroFundingEstimate().sponsorship, ...parsed.sponsorship },
+      grants: { ...zeroFundingEstimate().grants, ...parsed.grants },
+    };
+  } catch {
+    return zeroFundingEstimate();
+  }
+}
