@@ -62,6 +62,29 @@ describe('Analysis page', () => {
     expect(JSON.parse(sessionStorage.getItem('orgProfile')!)).toEqual(fullProfile);
   });
 
+  it('shows a thinking indicator before any step has arrived', async () => {
+    mockEventSource([]);
+    render(<Page />);
+    expect(screen.getByRole('status', { name: /thinking/i })).toBeInTheDocument();
+  });
+
+  it('reveals steps one at a time on their own pacing, not all at once (even if the server bunches them up)', async () => {
+    mockEventSource([
+      { type: 'step', data: JSON.stringify({ label: 'Found organisation name' }) },
+      { type: 'step', data: JSON.stringify({ label: 'Identified sport' }) },
+      { type: 'step', data: JSON.stringify({ label: 'Identified location' }) },
+    ]);
+
+    render(<Page />);
+
+    // Right after the burst lands, at most one item should be visible —
+    // never all three at once.
+    await waitFor(() => expect(screen.getByText('Found organisation name')).toBeInTheDocument());
+    expect(screen.queryByText('Identified location')).not.toBeInTheDocument();
+
+    await waitFor(() => expect(screen.getByText('Identified location')).toBeInTheDocument(), { timeout: 3000 });
+  });
+
   it('shows a live preview panel with org details once the profile arrives', async () => {
     mockEventSource([{ type: 'done', data: JSON.stringify(fullProfile) }]);
 

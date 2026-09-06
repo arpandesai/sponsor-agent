@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { OrgProfile } from '@/lib/org-profile';
 import { ErrorBanner } from '@/components/ErrorBanner';
 
+const REVEAL_INTERVAL_MS = 350;
 const NAVIGATE_DELAY_MS = 900;
 
 export default function AnalyzeClient() {
@@ -23,20 +24,39 @@ export default function AnalyzeClient() {
     setError(null);
 
     const source = new EventSource(`/api/analyze?url=${encodeURIComponent(url)}`);
+    const pendingLabels: string[] = [];
+    let pendingProfile: OrgProfile | null = null;
+    let doneReceived = false;
+    let revealTimer: ReturnType<typeof setInterval> | undefined;
     let navigateTimer: ReturnType<typeof setTimeout> | undefined;
+
+    // Reveal one discovered item at a time, on its own clock — regardless of
+    // how bunched-up the SSE events actually arrived — so it reads as
+    // "finding things" instead of a single instant dump.
+    function revealNext() {
+      const next = pendingLabels.shift();
+      if (next) {
+        setSteps((prev) => [...prev, next]);
+        return;
+      }
+      if (doneReceived) {
+        clearInterval(revealTimer);
+        setProfile(pendingProfile);
+        if (pendingProfile) sessionStorage.setItem('orgProfile', JSON.stringify(pendingProfile));
+        navigateTimer = setTimeout(() => router.push('/confirm'), NAVIGATE_DELAY_MS);
+      }
+    }
+    revealTimer = setInterval(revealNext, REVEAL_INTERVAL_MS);
 
     source.addEventListener('step', (event) => {
       const { label } = JSON.parse((event as MessageEvent).data);
-      setSteps((prev) => [...prev, label]);
+      pendingLabels.push(label);
     });
 
     source.addEventListener('done', (event) => {
-      const result = JSON.parse((event as MessageEvent).data);
-      setProfile(result);
-      sessionStorage.setItem('orgProfile', JSON.stringify(result));
+      pendingProfile = JSON.parse((event as MessageEvent).data);
+      doneReceived = true;
       source.close();
-      // Brief pause so the checklist and preview are actually visible before moving on.
-      navigateTimer = setTimeout(() => router.push('/confirm'), NAVIGATE_DELAY_MS);
     });
 
     source.addEventListener('error', (event) => {
@@ -44,10 +64,12 @@ export default function AnalyzeClient() {
       const message = messageEvent.data ? JSON.parse(messageEvent.data).error : 'Something went wrong.';
       setError(message);
       source.close();
+      clearInterval(revealTimer);
     });
 
     return () => {
       source.close();
+      clearInterval(revealTimer);
       if (navigateTimer) clearTimeout(navigateTimer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- router.push identity is unstable under test mocks; url/attempt alone should retrigger the connection
@@ -66,18 +88,23 @@ export default function AnalyzeClient() {
         {error ? (
           <ErrorBanner message={error} onRetry={() => setAttempt((n) => n + 1)} />
         ) : (
-          <ul className="flex flex-col gap-2">
-            {steps.map((label, i) => (
-              <li
-                key={label}
-                className="fade-in-up flex items-center gap-2 text-sm"
-                style={{ animationDelay: `${i * 60}ms` }}
-              >
-                <span aria-hidden>✓</span>
-                {label}
-              </li>
-            ))}
-          </ul>
+          <>
+            {steps.length === 0 && (
+              <div role="status" aria-label="Thinking" className="flex items-center gap-1.5 py-1">
+                <span className="h-2 w-2 animate-bounce rounded-full bg-[var(--color-accent)]" />
+                <span className="h-2 w-2 animate-bounce rounded-full bg-[var(--color-accent)] [animation-delay:150ms]" />
+                <span className="h-2 w-2 animate-bounce rounded-full bg-[var(--color-accent)] [animation-delay:300ms]" />
+              </div>
+            )}
+            <ul className="flex flex-col gap-2">
+              {steps.map((label) => (
+                <li key={label} className="fade-in-up flex items-center gap-2 text-sm">
+                  <span aria-hidden>✓</span>
+                  {label}
+                </li>
+              ))}
+            </ul>
+          </>
         )}
       </div>
 
