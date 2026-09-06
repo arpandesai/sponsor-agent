@@ -5,7 +5,7 @@ vi.mock('@/lib/openrouter', () => ({ extractOrgProfile: vi.fn() }));
 
 import { scrapeUrl } from '@/lib/scrape';
 import { extractOrgProfile } from '@/lib/openrouter';
-import { POST } from './route';
+import { GET, POST } from './route';
 
 async function readAllEvents(response: Response): Promise<string> {
   const reader = response.body!.getReader();
@@ -64,5 +64,38 @@ describe('POST /api/analyze', () => {
 
     expect(output).toContain('event: error');
     expect(output).toContain('timeout');
+  });
+
+  it('streams a readable error event, not a raw undefined message, when a dependency rejects with a non-Error value', async () => {
+    (scrapeUrl as any).mockRejectedValue('connection reset');
+
+    const request = new Request('http://localhost/api/analyze', {
+      method: 'POST',
+      body: JSON.stringify({ url: 'https://example.com' }),
+    });
+    const response = await POST(request);
+    const output = await readAllEvents(response);
+
+    expect(output).toContain('event: error');
+    expect(output).toContain('connection reset');
+    expect(output).not.toContain('undefined');
+  });
+
+  it('GET streams an error and never calls scrapeUrl when the url query param is missing entirely', async () => {
+    const request = new Request('http://localhost/api/analyze');
+    const response = await GET(request);
+    const output = await readAllEvents(response);
+
+    expect(output).toContain('event: error');
+    expect(scrapeUrl).not.toHaveBeenCalled();
+  });
+
+  it('GET streams an error and never calls scrapeUrl for an empty url query param', async () => {
+    const request = new Request('http://localhost/api/analyze?url=');
+    const response = await GET(request);
+    const output = await readAllEvents(response);
+
+    expect(output).toContain('event: error');
+    expect(scrapeUrl).not.toHaveBeenCalled();
   });
 });

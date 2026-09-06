@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { emptyOrgProfile, type OrgProfile } from '@/lib/org-profile';
+import { emptyOrgProfile, parseOrgProfile, type OrgProfile } from '@/lib/org-profile';
 import { ErrorBanner } from '@/components/ErrorBanner';
 
 function Chip({ label, onRemove }: { label: string; onRemove: () => void }) {
@@ -45,7 +45,12 @@ export default function ConfirmClient() {
 
   useEffect(() => {
     const stored = sessionStorage.getItem('orgProfile');
-    if (stored) setProfile(JSON.parse(stored));
+    if (!stored) return;
+    try {
+      setProfile(parseOrgProfile(JSON.parse(stored)));
+    } catch {
+      // Corrupted sessionStorage — keep the empty default form instead of crashing.
+    }
   }, []);
 
   function removeFundingNeed(need: string) {

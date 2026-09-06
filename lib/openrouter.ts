@@ -1,4 +1,5 @@
 import { parseOrgProfile, type OrgProfile } from './org-profile';
+import { errorMessage } from './errors';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const EXTRACTION_MODEL = 'anthropic/claude-sonnet-4.5';
@@ -18,10 +19,16 @@ async function callOpenRouter(body: Record<string, unknown>): Promise<any> {
       body: JSON.stringify(body),
     });
   } catch (err) {
-    throw new Error(`Could not reach OpenRouter: ${(err as Error).message}`);
+    throw new Error(`Could not reach OpenRouter: ${errorMessage(err)}`);
   }
 
-  const json = await response.json();
+  let json: any;
+  try {
+    json = await response.json();
+  } catch (err) {
+    throw new Error(`OpenRouter returned an unreadable response (${response.status}): ${errorMessage(err)}`);
+  }
+
   if (!response.ok) {
     throw new Error(json.error?.message ?? `OpenRouter request failed (${response.status})`);
   }
@@ -77,6 +84,36 @@ function zeroFundingEstimate(): FundingEstimate {
   };
 }
 
+function toFiniteNumber(value: unknown, fallback: number): number {
+  const num = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(num) ? num : fallback;
+}
+
+function toFundingBucket(
+  raw: unknown,
+  fallback: FundingEstimate['sponsorship']
+): FundingEstimate['sponsorship'] {
+  const source = (raw ?? {}) as Record<string, unknown>;
+  return {
+    count: toFiniteNumber(source.count, fallback.count),
+    minUsd: toFiniteNumber(source.minUsd, fallback.minUsd),
+    maxUsd: toFiniteNumber(source.maxUsd, fallback.maxUsd),
+    rationale: typeof source.rationale === 'string' ? source.rationale : fallback.rationale,
+  };
+}
+
+// Defensively re-shapes an arbitrary value (e.g. parsed sessionStorage
+// content) into a well-formed FundingEstimate instead of letting a
+// corrupted/wrong-shape value crash a consumer.
+export function parseFundingEstimate(input: unknown): FundingEstimate {
+  const zero = zeroFundingEstimate();
+  const source = (input ?? {}) as Record<string, unknown>;
+  return {
+    sponsorship: toFundingBucket(source.sponsorship, zero.sponsorship),
+    grants: toFundingBucket(source.grants, zero.grants),
+  };
+}
+
 export async function estimateFunding(profile: OrgProfile): Promise<FundingEstimate> {
   const json = await callOpenRouter({
     model: MATCHING_MODEL,
@@ -98,13 +135,14 @@ export async function estimateFunding(profile: OrgProfile): Promise<FundingEstim
   });
 
   const content = json.choices?.[0]?.message?.content ?? '';
+  const zero = zeroFundingEstimate();
   try {
     const parsed = JSON.parse(stripCodeFence(content));
     return {
-      sponsorship: { ...zeroFundingEstimate().sponsorship, ...parsed.sponsorship },
-      grants: { ...zeroFundingEstimate().grants, ...parsed.grants },
+      sponsorship: toFundingBucket(parsed?.sponsorship, zero.sponsorship),
+      grants: toFundingBucket(parsed?.grants, zero.grants),
     };
   } catch {
-    return zeroFundingEstimate();
+    return zero;
   }
 }

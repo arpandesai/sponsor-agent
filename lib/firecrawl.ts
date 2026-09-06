@@ -1,3 +1,5 @@
+import { errorMessage } from './errors';
+
 export interface ScrapeResult {
   url: string;
   text: string;
@@ -18,13 +20,23 @@ export async function scrapeUrl(url: string): Promise<ScrapeResult> {
       body: JSON.stringify({ url, formats: ['markdown'] }),
     });
   } catch (err) {
-    throw new Error(`Could not reach Firecrawl: ${(err as Error).message}`);
+    throw new Error(`Could not reach Firecrawl: ${errorMessage(err)}`);
   }
 
-  const body = await response.json();
+  let body: any;
+  try {
+    body = await response.json();
+  } catch (err) {
+    throw new Error(`Firecrawl returned an unreadable response (${response.status}): ${errorMessage(err)}`);
+  }
+
   if (!response.ok || !body.success) {
     throw new Error(body.error ?? `Firecrawl request failed (${response.status})`);
   }
 
-  return { url, text: body.data.markdown as string };
+  if (typeof body.data?.markdown !== 'string') {
+    throw new Error('Firecrawl response was missing the scraped page content');
+  }
+
+  return { url, text: body.data.markdown };
 }

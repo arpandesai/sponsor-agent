@@ -51,4 +51,15 @@ describe('Dashboard page', () => {
     render(<Page />);
     expect(screen.getByText(/loading your funding/i)).toBeInTheDocument();
   });
+
+  it('does not crash when sessionStorage.fundingEstimate is corrupted JSON — stays in loading state', () => {
+    sessionStorage.setItem('fundingEstimate', '{not valid json');
+    expect(() => render(<Page />)).not.toThrow();
+    expect(screen.getByText(/loading your funding/i)).toBeInTheDocument();
+  });
+
+  it('does not crash when sessionStorage.fundingEstimate is valid JSON but the wrong shape', () => {
+    sessionStorage.setItem('fundingEstimate', JSON.stringify(['not', 'an', 'estimate']));
+    expect(() => render(<Page />)).not.toThrow();
+  });
 });

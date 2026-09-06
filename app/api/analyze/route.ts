@@ -1,5 +1,6 @@
 import { scrapeUrl } from '@/lib/scrape';
 import { extractOrgProfile } from '@/lib/openrouter';
+import { errorMessage } from '@/lib/errors';
 
 const STEP_LABELS = [
   'Found organisation name',
@@ -20,8 +21,14 @@ function streamAnalysis(url: string | null): Response {
       const send = (event: string, data: unknown) =>
         controller.enqueue(encoder.encode(sseEvent(event, data)));
 
+      if (!url) {
+        send('error', { error: 'No organisation URL was provided' });
+        controller.close();
+        return;
+      }
+
       try {
-        const scraped = await scrapeUrl(url as string);
+        const scraped = await scrapeUrl(url);
         const profile = await extractOrgProfile(scraped.text);
 
         for (const label of STEP_LABELS) {
@@ -29,7 +36,7 @@ function streamAnalysis(url: string | null): Response {
         }
         send('done', profile);
       } catch (err) {
-        send('error', { error: (err as Error).message });
+        send('error', { error: errorMessage(err) });
       } finally {
         controller.close();
       }

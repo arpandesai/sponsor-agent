@@ -83,4 +83,15 @@ describe('Confirm page', () => {
     expect(push).not.toHaveBeenCalled();
     expect(sessionStorage.getItem('fundingEstimate')).toBeNull();
   });
+
+  it('does not crash when sessionStorage.orgProfile is corrupted JSON — falls back to an empty form', () => {
+    sessionStorage.setItem('orgProfile', '{not valid json');
+    expect(() => render(<Page />)).not.toThrow();
+    expect(screen.getAllByDisplayValue('')).not.toHaveLength(0);
+  });
+
+  it('does not crash when sessionStorage.orgProfile is valid JSON but the wrong shape', () => {
+    sessionStorage.setItem('orgProfile', JSON.stringify('just a string, not a profile object'));
+    expect(() => render(<Page />)).not.toThrow();
+  });
 });

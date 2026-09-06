@@ -9,6 +9,8 @@ vi.mock('next/navigation', () => ({
 
 import Page from './AnalyzeClient';
 
+const closeSpy = vi.fn();
+
 function mockEventSource(events: { type: string; data: string }[]) {
   class FakeEventSource {
     listeners: Record<string, ((e: MessageEvent) => void)[]> = {};
@@ -22,7 +24,9 @@ function mockEventSource(events: { type: string; data: string }[]) {
     addEventListener(type: string, cb: (e: MessageEvent) => void) {
       this.listeners[type] = [...(this.listeners[type] ?? []), cb];
     }
-    close() {}
+    close() {
+      closeSpy();
+    }
   }
   // @ts-expect-error test stub
   global.EventSource = FakeEventSource;
@@ -41,6 +45,7 @@ const fullProfile = {
 describe('Analysis page', () => {
   beforeEach(() => {
     push.mockClear();
+    closeSpy.mockClear();
     sessionStorage.clear();
   });
 
@@ -74,5 +79,20 @@ describe('Analysis page', () => {
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/timeout/));
     expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
+  });
+
+  it('does not navigate after unmounting during the pre-navigation delay (race condition)', async () => {
+    mockEventSource([{ type: 'done', data: JSON.stringify(fullProfile) }]);
+
+    const { unmount } = render(<Page />);
+
+    // Wait for the 'done' event to land (profile stored, navigate timer scheduled)
+    // but unmount before NAVIGATE_DELAY_MS elapses.
+    await waitFor(() => expect(sessionStorage.getItem('orgProfile')).not.toBeNull());
+    unmount();
+
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    expect(push).not.toHaveBeenCalled();
+    expect(closeSpy).toHaveBeenCalled();
   });
 });

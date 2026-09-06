@@ -57,4 +57,33 @@ describe('scrapeUrl', () => {
     (global.fetch as any).mockRejectedValue(new Error('fetch failed'));
     await expect(scrapeUrl('https://example.com')).rejects.toThrow(/fetch failed/);
   });
+
+  it('preserves the underlying message when fetch rejects with a non-Error value', async () => {
+    (global.fetch as any).mockRejectedValue('DNS lookup failed');
+    await expect(scrapeUrl('https://example.com')).rejects.toThrow(/DNS lookup failed/);
+  });
+
+  it('throws a TinyFish-attributed error instead of a raw SyntaxError when the response body is not valid JSON', async () => {
+    (global.fetch as any).mockResolvedValue({
+      ok: true,
+      json: async () => {
+        throw new SyntaxError('Unexpected end of JSON input');
+      },
+    });
+    await expect(scrapeUrl('https://example.com')).rejects.toThrow(/TinyFish/);
+  });
+
+  it('throws a readable error when a result exists but has no text field', async () => {
+    (global.fetch as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({ results: [{ url: 'https://example.com' }], errors: [] }),
+    });
+    await expect(scrapeUrl('https://example.com')).rejects.toThrow(/TinyFish/);
+  });
+
+  it('throws a readable error when the API key is missing, without calling fetch', async () => {
+    delete process.env.TINYFISH_API_KEY;
+    await expect(scrapeUrl('https://example.com')).rejects.toThrow(/TINYFISH_API_KEY/);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
 });

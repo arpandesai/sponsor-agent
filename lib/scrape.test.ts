@@ -35,4 +35,18 @@ describe('scrapeUrl (Firecrawl-first with TinyFish fallback)', () => {
 
     await expect(scrapeUrl('https://example.com')).rejects.toThrow(/Firecrawl down.*TinyFish down/s);
   });
+
+  it('produces a readable combined message even when a provider rejects with a non-Error value', async () => {
+    (firecrawlScrape as any).mockRejectedValue('a plain string rejection');
+    (tinyfishScrape as any).mockRejectedValue(undefined);
+
+    await expect(scrapeUrl('https://example.com')).rejects.toThrow(/Both scrape providers failed/);
+  });
+
+  it('produces a readable combined message when both providers reject with undefined', async () => {
+    (firecrawlScrape as any).mockRejectedValue(undefined);
+    (tinyfishScrape as any).mockRejectedValue(undefined);
+
+    await expect(scrapeUrl('https://example.com')).rejects.toThrow(/Both scrape providers failed/);
+  });
 });

@@ -33,4 +33,42 @@ describe('parseOrgProfile', () => {
       fundingNeeds: [],
     });
   });
+
+  it('never throws for null, undefined, primitive, or array input', () => {
+    expect(() => parseOrgProfile(null)).not.toThrow();
+    expect(() => parseOrgProfile(undefined)).not.toThrow();
+    expect(() => parseOrgProfile('a plain string')).not.toThrow();
+    expect(() => parseOrgProfile(42)).not.toThrow();
+    expect(() => parseOrgProfile(true)).not.toThrow();
+    expect(() => parseOrgProfile([1, 2, 3])).not.toThrow();
+    expect(parseOrgProfile(null)).toEqual(emptyOrgProfile());
+    expect(parseOrgProfile('a plain string')).toEqual(emptyOrgProfile());
+  });
+
+  it('drops non-string elements from array fields instead of throwing', () => {
+    const result = parseOrgProfile({
+      name: 'Club',
+      audience: ['Youth', 42, null, { weird: true }, 'Adults'],
+      programs: [1, 2, 3],
+      fundingNeeds: 'not-an-array-at-all',
+    });
+    expect(() => result).not.toThrow();
+    expect(result.audience).toEqual(['Youth', 'Adults']);
+    expect(result.programs).toEqual([]);
+    expect(result.fundingNeeds).toEqual([]);
+  });
+
+  it('treats a non-string name/location/sport/organisationType as missing rather than throwing', () => {
+    const result = parseOrgProfile({
+      name: 12345,
+      location: { nested: 'object' },
+      sport: ['array', 'not', 'string'],
+      organisationType: null,
+    });
+    expect(() => result).not.toThrow();
+    expect(result.name).toBe('');
+    expect(result.location).toBe('');
+    expect(result.sport).toBe('');
+    expect(result.organisationType).toBe('');
+  });
 });

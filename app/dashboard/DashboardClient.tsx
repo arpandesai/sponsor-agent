@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { FundingEstimate } from '@/lib/openrouter';
+import { parseFundingEstimate, type FundingEstimate } from '@/lib/openrouter';
 
 function formatAmount(value: number): string {
   if (value >= 1_000_000) {
@@ -15,7 +15,12 @@ export default function DashboardClient() {
 
   useEffect(() => {
     const stored = sessionStorage.getItem('fundingEstimate');
-    if (stored) setEstimate(JSON.parse(stored));
+    if (!stored) return;
+    try {
+      setEstimate(parseFundingEstimate(JSON.parse(stored)));
+    } catch {
+      // Corrupted sessionStorage — keep the loading state instead of crashing.
+    }
   }, []);
 
   if (!estimate) {
