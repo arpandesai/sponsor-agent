@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { Sponsor } from '@/lib/openrouter';
 import { ErrorBanner } from '@/components/ErrorBanner';
@@ -42,7 +43,17 @@ export default function SponsorsClient() {
 
   return (
     <main className="mx-auto flex max-w-3xl flex-col gap-6 px-6 py-24">
-      <h1 className="text-2xl font-semibold">Sponsors likely to fund you</h1>
+      <div>
+        <h1 className="text-2xl font-semibold">Sponsors likely to fund you</h1>
+        <p className="mt-1 text-sm text-[var(--color-muted)]">
+          Researching real local sponsors and cross-referencing who backs organisations like yours — this can
+          take up to a minute.
+        </p>
+      </div>
+
+      <Link href="/dashboard" className="text-sm text-[var(--color-muted)] underline">
+        ← Back to Dashboard
+      </Link>
 
       {error ? (
         <ErrorBanner message={error} onRetry={() => setAttempt((n) => n + 1)} />

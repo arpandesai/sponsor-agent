@@ -28,6 +28,12 @@ describe('Sponsors list page', () => {
     global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => sponsors });
   });
 
+  it('explains why the search may take a while, and links back to the dashboard', async () => {
+    render(<Page />);
+    expect(screen.getByText(/can take up to a minute/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /back to dashboard/i })).toHaveAttribute('href', '/dashboard');
+  });
+
   it('redirects to / when there is no orgProfile in sessionStorage', () => {
     sessionStorage.clear();
     render(<Page />);
