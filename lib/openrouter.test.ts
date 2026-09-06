@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { extractOrgProfile, estimateFunding, parseFundingEstimate, findSponsors, draftPitch, type Sponsor } from './openrouter';
+vi.mock('./tinyfish', () => ({ searchWeb: vi.fn() }));
+
+import { extractOrgProfile, estimateFunding, parseFundingEstimate, findSponsors, draftPitch, buildSponsorSearchQueries, type Sponsor } from './openrouter';
 import type { OrgProfile } from './org-profile';
+import { searchWeb } from './tinyfish';
 
 describe('extractOrgProfile', () => {
   beforeEach(() => {
@@ -197,10 +200,37 @@ describe('parseFundingEstimate', () => {
   });
 });
 
+describe('buildSponsorSearchQueries', () => {
+  const profile: OrgProfile = {
+    name: 'Prairie Fencing Club',
+    location: 'Saskatoon, Saskatchewan, Canada',
+    sport: 'Fencing',
+    organisationType: 'Community Sports Club',
+    audience: ['Youth'],
+    programs: ['Youth Fencing'],
+    fundingNeeds: ['Equipment'],
+  };
+
+  it('generates location, community, competitor-sport, and industry-specific queries', () => {
+    const queries = buildSponsorSearchQueries(profile);
+    expect(queries.some((q) => q.includes('Saskatoon') && q.includes('sponsorship'))).toBe(true);
+    expect(queries.some((q) => q.includes('community'))).toBe(true);
+    expect(queries.some((q) => q.includes('soccer'))).toBe(true);
+    expect(queries.some((q) => q.includes('credit union'))).toBe(true);
+    // Never queries the org's own sport as a "competitor"
+    expect(queries.some((q) => q.toLowerCase().includes('saskatoon fencing club sponsors'))).toBe(false);
+  });
+
+  it('returns an empty array when there is no usable location', () => {
+    expect(buildSponsorSearchQueries({ ...profile, location: '', city: undefined })).toEqual([]);
+  });
+});
+
 describe('findSponsors', () => {
   beforeEach(() => {
     process.env.OPENROUTER_API_KEY = 'test-key';
     global.fetch = vi.fn();
+    (searchWeb as any).mockResolvedValue([]);
   });
   afterEach(() => {
     vi.restoreAllMocks();
@@ -269,6 +299,66 @@ describe('findSponsors', () => {
   it('preserves the underlying message when fetch rejects with a non-Error value', async () => {
     (global.fetch as any).mockRejectedValue('connection reset');
     await expect(findSponsors(profile)).rejects.toThrow(/connection reset/);
+  });
+
+  it('uses TinyFish search results to synthesize sponsors when search succeeds', async () => {
+    (searchWeb as any).mockResolvedValue([
+      { title: 'Sponsors', snippet: 'Conexus Credit Union sponsors local youth clubs.', url: 'https://example.com/sponsors', siteName: 'Example' },
+    ]);
+    const sponsorsJson = JSON.stringify({
+      sponsors: [
+        {
+          name: 'Conexus Credit Union',
+          category: 'Local Business',
+          relationship: 'prospect',
+          matchScore: 90,
+          matchReason: 'Documented local sponsorship activity.',
+          estimatedMinUsd: 5000,
+          estimatedMaxUsd: 25000,
+          evidence: [{ claim: 'Sponsors local youth clubs', sourceUrl: 'https://example.com/sponsors' }],
+        },
+      ],
+    });
+    (global.fetch as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: sponsorsJson } }] }),
+    });
+
+    const sponsors = await findSponsors(profile);
+    expect(sponsors).toHaveLength(1);
+    expect(sponsors[0].name).toBe('Conexus Credit Union');
+    expect(sponsors[0].relationship).toBe('prospect');
+    expect(sponsors[0].evidence?.[0].sourceUrl).toBe('https://example.com/sponsors');
+  });
+
+  it('falls back to the direct web-search model when every TinyFish search query fails', async () => {
+    (searchWeb as any).mockRejectedValue(new Error('TinyFish down'));
+    const sponsorsJson = JSON.stringify({
+      sponsors: [
+        { name: 'Fallback Co', matchScore: 60, matchReason: 'r', estimatedMinUsd: 1000, estimatedMaxUsd: 5000, category: 'Local Business' },
+      ],
+    });
+    (global.fetch as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: sponsorsJson } }] }),
+    });
+
+    const sponsors = await findSponsors(profile);
+    expect(sponsors).toHaveLength(1);
+    expect(sponsors[0].name).toBe('Fallback Co');
+  });
+
+  it('defaults relationship to "prospect" when the model omits it', async () => {
+    const sponsorsJson = JSON.stringify({
+      sponsors: [{ name: 'No Relationship Field', matchScore: 50, matchReason: 'r', estimatedMinUsd: 0, estimatedMaxUsd: 0, category: '' }],
+    });
+    (global.fetch as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: sponsorsJson } }] }),
+    });
+
+    const sponsors = await findSponsors(profile);
+    expect(sponsors[0].relationship).toBe('prospect');
   });
 });
 

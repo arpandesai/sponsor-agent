@@ -1,5 +1,6 @@
 import { parseOrgProfile, type OrgProfile } from './org-profile';
 import { errorMessage } from './errors';
+import { searchWeb } from './tinyfish';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const EXTRACTION_MODEL = 'anthropic/claude-sonnet-4.5';
@@ -147,6 +148,14 @@ export async function estimateFunding(profile: OrgProfile): Promise<FundingEstim
   }
 }
 
+export interface EvidenceItem {
+  claim: string;
+  sourceUrl: string;
+  sourceTitle?: string;
+  sourceType?: string;
+  evidenceType?: string;
+}
+
 export interface Sponsor {
   name: string;
   matchScore: number;
@@ -154,11 +163,48 @@ export interface Sponsor {
   estimatedMinUsd: number;
   estimatedMaxUsd: number;
   category: string;
+  relationship?: 'confirmed_existing' | 'prospect';
+  city?: string;
+  region?: string;
+  country?: string;
+  evidenceScore?: number;
+  geographyScore?: number;
+  sportScore?: number;
+  audienceScore?: number;
+  causeScore?: number;
+  scaleScore?: number;
+  recencyScore?: number;
+  evidenceConfidence?: 'high' | 'medium' | 'low';
+  classification?: 'exceptional' | 'strong' | 'good' | 'explore';
+  recommendedAngle?: string;
+  currency?: string;
+  estimateConfidence?: 'high' | 'medium' | 'low';
+  evidence?: EvidenceItem[];
+}
+
+function toEvidenceItem(raw: unknown): EvidenceItem | null {
+  const source = (raw ?? {}) as Record<string, unknown>;
+  if (typeof source.claim !== 'string' || typeof source.sourceUrl !== 'string') return null;
+  return {
+    claim: source.claim,
+    sourceUrl: source.sourceUrl,
+    sourceTitle: typeof source.sourceTitle === 'string' ? source.sourceTitle : undefined,
+    sourceType: typeof source.sourceType === 'string' ? source.sourceType : undefined,
+    evidenceType: typeof source.evidenceType === 'string' ? source.evidenceType : undefined,
+  };
+}
+
+function toOptionalScore(value: unknown): number | undefined {
+  const num = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(num) ? num : undefined;
 }
 
 function toSponsor(raw: unknown): Sponsor | null {
   const source = (raw ?? {}) as Record<string, unknown>;
   if (typeof source.name !== 'string' || typeof source.matchReason !== 'string') return null;
+  const evidence = Array.isArray(source.evidence)
+    ? source.evidence.map(toEvidenceItem).filter((e): e is EvidenceItem => e !== null)
+    : undefined;
   return {
     name: source.name,
     matchScore: toFiniteNumber(source.matchScore, 0),
@@ -166,10 +212,123 @@ function toSponsor(raw: unknown): Sponsor | null {
     estimatedMinUsd: toFiniteNumber(source.estimatedMinUsd, 0),
     estimatedMaxUsd: toFiniteNumber(source.estimatedMaxUsd, 0),
     category: typeof source.category === 'string' ? source.category : '',
+    relationship: source.relationship === 'confirmed_existing' ? 'confirmed_existing' : 'prospect',
+    city: typeof source.city === 'string' ? source.city : undefined,
+    region: typeof source.region === 'string' ? source.region : undefined,
+    country: typeof source.country === 'string' ? source.country : undefined,
+    evidenceScore: toOptionalScore(source.evidenceScore),
+    geographyScore: toOptionalScore(source.geographyScore),
+    sportScore: toOptionalScore(source.sportScore),
+    audienceScore: toOptionalScore(source.audienceScore),
+    causeScore: toOptionalScore(source.causeScore),
+    scaleScore: toOptionalScore(source.scaleScore),
+    recencyScore: toOptionalScore(source.recencyScore),
+    evidenceConfidence:
+      source.evidenceConfidence === 'high' || source.evidenceConfidence === 'medium' || source.evidenceConfidence === 'low'
+        ? source.evidenceConfidence
+        : undefined,
+    classification:
+      source.classification === 'exceptional' ||
+      source.classification === 'strong' ||
+      source.classification === 'good' ||
+      source.classification === 'explore'
+        ? source.classification
+        : undefined,
+    recommendedAngle: typeof source.recommendedAngle === 'string' ? source.recommendedAngle : undefined,
+    currency: typeof source.currency === 'string' ? source.currency : undefined,
+    estimateConfidence:
+      source.estimateConfidence === 'high' || source.estimateConfidence === 'medium' || source.estimateConfidence === 'low'
+        ? source.estimateConfidence
+        : undefined,
+    evidence,
   };
 }
 
-export async function findSponsors(profile: OrgProfile): Promise<Sponsor[]> {
+const OTHER_SPORTS = ['soccer', 'hockey', 'basketball', 'swimming', 'gymnastics', 'athletics'];
+
+// Pure and deterministic — no API call. Encodes the query-expansion
+// methodology (location+sport, location+community, competitor-sport mining,
+// industry-specific) that used to live only inside the LLM prompt.
+export function buildSponsorSearchQueries(profile: OrgProfile): string[] {
+  const city = profile.city || profile.location.split(',')[0]?.trim() || '';
+  if (!city) return [];
+  const region = profile.region || profile.location.split(',')[1]?.trim() || '';
+  const competitorSports = OTHER_SPORTS.filter((s) => s.toLowerCase() !== profile.sport.toLowerCase());
+
+  return [
+    `${city} sports sponsorship`,
+    `${city} youth sport sponsor`,
+    ...(region ? [`${region} sports sponsorship`] : []),
+    `${city} community sponsorship`,
+    `${city} community investment`,
+    `${city} sponsor youth`,
+    ...competitorSports.map((sport) => `${city} ${sport} club sponsors`),
+    `${city} credit union sponsorship`,
+    `${city} dealership sports sponsor`,
+    `${city} law firm sports sponsorship`,
+    `${city} insurance community sponsorship`,
+    `${city} dental youth sports sponsor`,
+  ];
+}
+
+const SPONSOR_SYSTEM_PROMPT =
+  'You are a sponsorship prospecting research assistant. You are given the organisation\'s profile and real ' +
+  'web search results (title/url/snippet) gathered for it — use ONLY this provided context as your evidence, ' +
+  'do not invent facts beyond it.\n\n' +
+  'First, identify from the search results any companies that ALREADY sponsor or partner with this ' +
+  'organisation today — mark these with relationship: "confirmed_existing".\n\n' +
+  'Then identify 8-12 NEW prospective sponsor companies (relationship: "prospect") that are NOT already ' +
+  'sponsors — prefer real local/regional businesses over generic national brand guesses. Prioritize any ' +
+  'candidate the search results show sponsoring 2+ OTHER local sports organisations — that is the strongest ' +
+  'signal (a demonstrated, repeated willingness to fund local sport).\n\n' +
+  'For every entry (existing or prospect), evidence must be an array of { claim, sourceUrl } pulled from the ' +
+  'provided search results — never a generic reason with no evidence behind it.\n\n' +
+  'Respond with ONLY a JSON object, no other text before or after it: ' +
+  '{ "sponsors": [ { "name": string, "category": string, "relationship": "confirmed_existing" | "prospect", ' +
+  '"matchScore": number (0-100), "matchReason": string, "estimatedMinUsd": number, "estimatedMaxUsd": number, ' +
+  '"evidence": [ { "claim": string, "sourceUrl": string } ] } ] }.';
+
+async function synthesizeSponsors(profile: OrgProfile, searchContext: string): Promise<Sponsor[]> {
+  const json = await callOpenRouter({
+    model: EXTRACTION_MODEL,
+    response_format: { type: 'json_object' },
+    messages: [
+      { role: 'system', content: SPONSOR_SYSTEM_PROMPT },
+      { role: 'user', content: JSON.stringify({ profile, searchResults: searchContext }) },
+    ],
+  });
+
+  const content = json.choices?.[0]?.message?.content ?? '';
+  try {
+    const parsed = JSON.parse(stripCodeFence(content));
+    const list = Array.isArray(parsed?.sponsors) ? parsed.sponsors : [];
+    return list.map(toSponsor).filter((s: Sponsor | null): s is Sponsor => s !== null);
+  } catch {
+    return [];
+  }
+}
+
+// Free-search path: generate queries, fan them out to TinyFish's free Search
+// API, synthesize the results. Returns null (not []) when every query failed
+// so the caller can fall back to the paid direct-search model, rather than
+// confusing "TinyFish is down" with "genuinely no sponsors found".
+async function findSponsorsViaSearch(profile: OrgProfile): Promise<Sponsor[] | null> {
+  const queries = buildSponsorSearchQueries(profile);
+  if (queries.length === 0) return null;
+
+  const settled = await Promise.allSettled(queries.map((q) => searchWeb(q)));
+  const allResults = settled.flatMap((r) => (r.status === 'fulfilled' ? r.value : []));
+  if (allResults.length === 0) return null;
+
+  const context = allResults
+    .slice(0, 150)
+    .map((r) => `- ${r.title} (${r.url}): ${r.snippet}`)
+    .join('\n');
+  return synthesizeSponsors(profile, context);
+}
+
+// Fallback: the original single-call, paid web-search-grounded approach.
+async function findSponsorsViaDirectSearch(profile: OrgProfile): Promise<Sponsor[]> {
   const json = await callOpenRouter({
     model: MATCHING_MODEL,
     messages: [
@@ -220,6 +379,12 @@ export async function findSponsors(profile: OrgProfile): Promise<Sponsor[]> {
   } catch {
     return [];
   }
+}
+
+export async function findSponsors(profile: OrgProfile): Promise<Sponsor[]> {
+  const viaSearch = await findSponsorsViaSearch(profile);
+  if (viaSearch !== null) return viaSearch;
+  return findSponsorsViaDirectSearch(profile);
 }
 
 export interface PitchDraft {
