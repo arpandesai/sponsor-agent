@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-vi.mock('@/lib/firecrawl', () => ({ scrapeUrl: vi.fn() }));
+vi.mock('@/lib/tinyfish', () => ({ scrapeUrl: vi.fn() }));
 vi.mock('@/lib/openrouter', () => ({ extractOrgProfile: vi.fn() }));
 
-import { scrapeUrl } from '@/lib/firecrawl';
+import { scrapeUrl } from '@/lib/tinyfish';
 import { extractOrgProfile } from '@/lib/openrouter';
 import { POST } from './route';
 
@@ -53,7 +53,7 @@ describe('POST /api/analyze', () => {
   });
 
   it('streams an error event when scraping fails', async () => {
-    (scrapeUrl as any).mockRejectedValue(new Error('Could not reach Firecrawl: timeout'));
+    (scrapeUrl as any).mockRejectedValue(new Error('Could not reach TinyFish: timeout'));
 
     const request = new Request('http://localhost/api/analyze', {
       method: 'POST',

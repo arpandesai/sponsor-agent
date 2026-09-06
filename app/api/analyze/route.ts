@@ -1,4 +1,4 @@
-import { scrapeUrl } from '@/lib/firecrawl';
+import { scrapeUrl } from '@/lib/tinyfish';
 import { extractOrgProfile } from '@/lib/openrouter';
 
 const STEP_LABELS = [

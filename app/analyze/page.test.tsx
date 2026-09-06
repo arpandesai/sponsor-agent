@@ -49,7 +49,7 @@ describe('Analysis page', () => {
   });
 
   it('shows an inline error with retry on an error event', async () => {
-    mockEventSource([{ type: 'error', data: JSON.stringify({ error: 'Could not reach Firecrawl: timeout' }) }]);
+    mockEventSource([{ type: 'error', data: JSON.stringify({ error: 'Could not reach TinyFish: timeout' }) }]);
 
     render(<Page />);
 
