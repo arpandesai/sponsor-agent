@@ -7,6 +7,9 @@
   --color-accent: #0f766e;
   --color-accent-ink: #f0fdfa;
   --color-border: #e7e5e4;
+  --color-danger-bg: #fef2f2;
+  --color-danger-border: #fecaca;
+  --color-danger-ink: #991b1b;
   --radius-md: 0.75rem;
   --radius-lg: 1rem;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
@@ -22,6 +25,9 @@
     --color-accent: #2dd4bf;
     --color-accent-ink: #042f2e;
     --color-border: #292524;
+    --color-danger-bg: #2a1414;
+    --color-danger-border: #7f1d1d;
+    --color-danger-ink: #fca5a5;
   }
 }
 

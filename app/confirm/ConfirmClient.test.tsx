@@ -4,7 +4,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 const push = vi.fn();
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
 
-import Page from './page';
+import Page from './ConfirmClient';
 
 const profile = {
   name: 'Prairie Fencing Club',

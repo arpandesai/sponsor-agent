@@ -7,7 +7,7 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams('url=https%3A%2F%2Fexample.com'),
 }));
 
-import Page from './page';
+import Page from './AnalyzeClient';
 
 function mockEventSource(events: { type: string; data: string }[]) {
   class FakeEventSource {

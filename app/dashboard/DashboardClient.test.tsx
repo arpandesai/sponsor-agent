@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import Page from './page';
+import Page from './DashboardClient';
 
 describe('Dashboard page', () => {
   beforeEach(() => {
