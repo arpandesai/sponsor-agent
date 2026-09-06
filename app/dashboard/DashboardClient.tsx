@@ -18,7 +18,13 @@ export default function DashboardClient() {
     if (stored) setEstimate(JSON.parse(stored));
   }, []);
 
-  if (!estimate) return null;
+  if (!estimate) {
+    return (
+      <main className="mx-auto flex max-w-3xl flex-col gap-6 px-6 py-24">
+        <p className="text-sm text-[var(--color-muted)]">Loading your funding opportunities…</p>
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto flex max-w-3xl flex-col gap-6 px-6 py-24">
@@ -35,6 +41,7 @@ export default function DashboardClient() {
           <button disabled className="pressable mt-4 rounded-[var(--radius-md)] border border-[var(--color-border)] px-4 py-2 text-sm opacity-60">
             View Sponsors
           </button>
+          <p className="mt-1 text-xs text-[var(--color-muted)]">Coming soon — sponsor list &amp; outreach.</p>
         </article>
 
         <article
@@ -50,6 +57,7 @@ export default function DashboardClient() {
           <button disabled className="pressable mt-4 rounded-[var(--radius-md)] border border-[var(--color-border)] px-4 py-2 text-sm opacity-60">
             Find Grants
           </button>
+          <p className="mt-1 text-xs text-[var(--color-muted)]">Coming soon — grant list &amp; applications.</p>
         </article>
       </div>
     </main>

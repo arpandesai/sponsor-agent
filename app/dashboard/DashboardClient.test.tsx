@@ -28,6 +28,11 @@ describe('Dashboard page', () => {
     expect(screen.getByRole('button', { name: /find grants/i })).toBeDisabled();
   });
 
+  it('explains why the deep-dive CTAs are disabled', () => {
+    render(<Page />);
+    expect(screen.getAllByText(/coming soon/i).length).toBeGreaterThan(0);
+  });
+
   it('formats amounts at or above $1M using an M suffix instead of a huge K value', () => {
     sessionStorage.setItem(
       'fundingEstimate',
@@ -39,5 +44,11 @@ describe('Dashboard page', () => {
     render(<Page />);
     expect(screen.getByText(/\$3K–\$3\.6M/)).toBeInTheDocument();
     expect(screen.getByText(/\$2K–\$9\.4M/)).toBeInTheDocument();
+  });
+
+  it('shows a loading state instead of a blank page before the estimate loads', () => {
+    sessionStorage.clear();
+    render(<Page />);
+    expect(screen.getByText(/loading your funding/i)).toBeInTheDocument();
   });
 });

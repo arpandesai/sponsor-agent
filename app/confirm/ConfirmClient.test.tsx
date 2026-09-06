@@ -36,6 +36,20 @@ describe('Confirm page', () => {
     expect(screen.getByText('Youth Fencing')).toBeInTheDocument();
   });
 
+  it('shows and lets you edit location, sport, organisation type, and audience — not just name', () => {
+    render(<Page />);
+    expect(screen.getByDisplayValue('Saskatoon, Saskatchewan, Canada')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Fencing')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Community Sports Club')).toBeInTheDocument();
+    expect(screen.getByText('Youth')).toBeInTheDocument();
+    expect(screen.getByText('Adults')).toBeInTheDocument();
+  });
+
+  it('explains what happens after clicking "Looks Good"', () => {
+    render(<Page />);
+    expect(screen.getByText(/real-time funding search/i)).toBeInTheDocument();
+  });
+
   it('removing a funding-need chip excludes it from the submitted profile', async () => {
     render(<Page />);
     fireEvent.click(screen.getByRole('button', { name: /remove equipment/i }));
@@ -64,7 +78,7 @@ describe('Confirm page', () => {
     render(<Page />);
     fireEvent.click(screen.getByRole('button', { name: /looks good/i }));
 
-    await waitFor(() => expect(screen.getByText(/Provider returned error/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/Provider returned error/));
     expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
     expect(push).not.toHaveBeenCalled();
     expect(sessionStorage.getItem('fundingEstimate')).toBeNull();

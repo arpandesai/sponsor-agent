@@ -28,6 +28,16 @@ function mockEventSource(events: { type: string; data: string }[]) {
   global.EventSource = FakeEventSource;
 }
 
+const fullProfile = {
+  name: 'Prairie Fencing Club',
+  location: 'Saskatoon, Saskatchewan, Canada',
+  sport: 'Fencing',
+  organisationType: 'Community Sports Club',
+  audience: ['Youth', 'Adults'],
+  programs: ['Youth Fencing'],
+  fundingNeeds: ['Equipment'],
+};
+
 describe('Analysis page', () => {
   beforeEach(() => {
     push.mockClear();
@@ -35,17 +45,26 @@ describe('Analysis page', () => {
   });
 
   it('renders step labels as they stream in, then stores profile and navigates', async () => {
-    const profile = { name: 'Prairie Fencing Club', location: '', sport: '', organisationType: '', audience: [], programs: [], fundingNeeds: [] };
     mockEventSource([
       { type: 'step', data: JSON.stringify({ label: 'Found organisation name' }) },
-      { type: 'done', data: JSON.stringify(profile) },
+      { type: 'done', data: JSON.stringify(fullProfile) },
     ]);
 
     render(<Page />);
 
     await waitFor(() => expect(screen.getByText('Found organisation name')).toBeInTheDocument());
-    await waitFor(() => expect(push).toHaveBeenCalledWith('/confirm'));
-    expect(JSON.parse(sessionStorage.getItem('orgProfile')!)).toEqual(profile);
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/confirm'), { timeout: 3000 });
+    expect(JSON.parse(sessionStorage.getItem('orgProfile')!)).toEqual(fullProfile);
+  });
+
+  it('shows a live preview panel with org details once the profile arrives', async () => {
+    mockEventSource([{ type: 'done', data: JSON.stringify(fullProfile) }]);
+
+    render(<Page />);
+
+    await waitFor(() => expect(screen.getByText('Prairie Fencing Club')).toBeInTheDocument());
+    expect(screen.getByText('Saskatoon, Saskatchewan, Canada')).toBeInTheDocument();
+    expect(screen.getByText('Fencing')).toBeInTheDocument();
   });
 
   it('shows an inline error with retry on an error event', async () => {
@@ -53,7 +72,7 @@ describe('Analysis page', () => {
 
     render(<Page />);
 
-    await waitFor(() => expect(screen.getByText(/timeout/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/timeout/));
     expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
   });
 });

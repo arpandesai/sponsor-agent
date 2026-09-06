@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { emptyOrgProfile, type OrgProfile } from '@/lib/org-profile';
+import { ErrorBanner } from '@/components/ErrorBanner';
 
 function Chip({ label, onRemove }: { label: string; onRemove: () => void }) {
   return (
@@ -12,6 +13,27 @@ function Chip({ label, onRemove }: { label: string; onRemove: () => void }) {
         ×
       </button>
     </span>
+  );
+}
+
+function TextField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="flex flex-col gap-1 text-sm">
+      {label}
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="rounded-[var(--radius-md)] border border-[var(--color-border)] px-3 py-2"
+      />
+    </label>
   );
 }
 
@@ -28,6 +50,10 @@ export default function ConfirmClient() {
 
   function removeFundingNeed(need: string) {
     setProfile((p) => ({ ...p, fundingNeeds: p.fundingNeeds.filter((n) => n !== need) }));
+  }
+
+  function removeAudience(segment: string) {
+    setProfile((p) => ({ ...p, audience: p.audience.filter((a) => a !== segment) }));
   }
 
   async function handleConfirm() {
@@ -56,14 +82,29 @@ export default function ConfirmClient() {
         </p>
       </div>
 
-      <label className="flex flex-col gap-1 text-sm">
-        Name
-        <input
-          value={profile.name}
-          onChange={(e) => setProfile((p) => ({ ...p, name: e.target.value }))}
-          className="rounded-[var(--radius-md)] border border-[var(--color-border)] px-3 py-2"
+      <div className="grid gap-4 sm:grid-cols-2">
+        <TextField label="Name" value={profile.name} onChange={(v) => setProfile((p) => ({ ...p, name: v }))} />
+        <TextField
+          label="Location"
+          value={profile.location}
+          onChange={(v) => setProfile((p) => ({ ...p, location: v }))}
         />
-      </label>
+        <TextField label="Sport" value={profile.sport} onChange={(v) => setProfile((p) => ({ ...p, sport: v }))} />
+        <TextField
+          label="Organisation Type"
+          value={profile.organisationType}
+          onChange={(v) => setProfile((p) => ({ ...p, organisationType: v }))}
+        />
+      </div>
+
+      <div>
+        <h2 className="mb-2 text-sm font-medium">Who You Serve</h2>
+        <div className="flex flex-wrap gap-2">
+          {profile.audience.map((segment) => (
+            <Chip key={segment} label={segment} onRemove={() => removeAudience(segment)} />
+          ))}
+        </div>
+      </div>
 
       <div>
         <h2 className="mb-2 text-sm font-medium">Programs We Found</h2>
@@ -86,25 +127,21 @@ export default function ConfirmClient() {
       </div>
 
       {error ? (
-        <div className="rounded-[var(--radius-md)] border border-[var(--color-border)] p-4">
-          <p className="text-sm">{error}</p>
+        <ErrorBanner message={error} onRetry={handleConfirm} />
+      ) : (
+        <div>
           <button
             type="button"
-            className="pressable mt-3 rounded-[var(--radius-md)] bg-[var(--color-accent)] px-4 py-2 text-sm text-[var(--color-accent-ink)]"
+            disabled={submitting}
             onClick={handleConfirm}
+            className="pressable rounded-[var(--radius-md)] bg-[var(--color-accent)] px-6 py-3 font-medium text-[var(--color-accent-ink)] disabled:opacity-60"
           >
-            Retry
+            {submitting ? 'Finding funding…' : 'Looks Good — Find Funding'}
           </button>
+          <p className="mt-2 text-sm text-[var(--color-muted)]">
+            This kicks off a real-time funding search — takes about 10 seconds.
+          </p>
         </div>
-      ) : (
-        <button
-          type="button"
-          disabled={submitting}
-          onClick={handleConfirm}
-          className="pressable rounded-[var(--radius-md)] bg-[var(--color-accent)] px-6 py-3 font-medium text-[var(--color-accent-ink)] disabled:opacity-60"
-        >
-          {submitting ? 'Finding funding…' : 'Looks Good — Find Funding'}
-        </button>
       )}
     </main>
   );
