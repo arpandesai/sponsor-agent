@@ -34,6 +34,33 @@ describe('extractOrgProfile', () => {
     expect(profile.audience).toEqual(['Youth', 'Adults']);
   });
 
+  it('parses currentSponsors and geo fields when the model includes them', async () => {
+    const profileJson = JSON.stringify({
+      name: 'Prairie Fencing Club',
+      location: 'Saskatoon, Saskatchewan, Canada',
+      sport: 'Fencing',
+      organisationType: 'Community Sports Club',
+      audience: [],
+      programs: [],
+      fundingNeeds: [],
+      currentSponsors: ['Conexus Credit Union'],
+      city: 'Saskatoon',
+      region: 'Saskatchewan',
+      country: 'Canada',
+      lat: 52.1332,
+      lng: -106.67,
+    });
+    (global.fetch as any).mockResolvedValue({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: profileJson } }] }),
+    });
+
+    const profile = await extractOrgProfile('Thank you to our sponsor Conexus Credit Union...');
+    expect(profile.currentSponsors).toEqual(['Conexus Credit Union']);
+    expect(profile.city).toBe('Saskatoon');
+    expect(profile.lat).toBe(52.1332);
+  });
+
   it('parses model output even when wrapped in a ```json code fence', async () => {
     const fenced = '```json\n{"name":"Rowing Australia","location":"Australia","sport":"Rowing","organisationType":"National Governing Body","audience":[],"programs":[],"fundingNeeds":[]}\n```';
     (global.fetch as any).mockResolvedValue({

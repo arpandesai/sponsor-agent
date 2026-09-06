@@ -54,8 +54,14 @@ export async function extractOrgProfile(siteText: string): Promise<OrgProfile> {
           'Respond with ONLY a JSON object with keys: name, location, sport, ' +
           'organisationType, audience (string array), programs (string array), ' +
           'fundingNeeds (string array of likely funding needs like Equipment, ' +
-          'Athlete Travel, Youth Development, Coaching, Community Participation, Events). ' +
-          'Use "" or [] for anything not found.',
+          'Athlete Travel, Youth Development, Coaching, Community Participation, Events), ' +
+          'currentSponsors (string array — company/brand names mentioned as sponsors, ' +
+          'partners, or supporters anywhere in the text, e.g. "thank you to our sponsors" ' +
+          'sections, partner logos, or "proudly supported by" mentions), ' +
+          'city, region, country (the organisation\'s location split into parts), ' +
+          'lat, lng (approximate coordinates for that city — use your knowledge of real-world ' +
+          'geography, not the page content). ' +
+          'Use "" or [] for anything not found, and omit lat/lng if genuinely unknown.',
       },
       { role: 'user', content: siteText.slice(0, 20000) },
     ],
