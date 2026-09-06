@@ -176,12 +176,22 @@ export async function findSponsors(profile: OrgProfile): Promise<Sponsor[]> {
       {
         role: 'system',
         content:
-          'You research real companies likely to sponsor a sports organisation, using web search. ' +
+          'You are a sponsorship prospecting research assistant using web search. You work in two steps.\n\n' +
+          'INTERNAL RESEARCH (do not output this): search for and build a mental exclude-list of companies ' +
+          'that ALREADY sponsor or partner with this organisation today — check their website, annual reports, ' +
+          'press releases, and "thank you to our sponsors" pages.\n\n' +
+          'YOUR ACTUAL TASK: suggest 8-12 NEW prospective sponsor companies that are NOT on your exclude-list ' +
+          '— companies this organisation does not yet have a relationship with. For each, cite real evidence ' +
+          'for why they are a good prospect: a documented CSR or sponsorship program relevant to youth/' +
+          'community/amateur sports, or evidence they sponsor comparable organisations (same sport, similar ' +
+          'size, same region). Never a generic reason like "well-known local brand" with no evidence behind it.\n\n' +
+          'CRITICAL: if a company already sponsors this organisation, DO NOT include it in your output — you ' +
+          'are prospecting for new opportunities only, not cataloguing existing ones.\n\n' +
           'Respond with ONLY a JSON object, no other text before or after it: ' +
-          '{ "sponsors": [ { "name": string, "matchScore": number (0-100), "matchReason": string ' +
-          '(one sentence explaining the match), "estimatedMinUsd": number, "estimatedMaxUsd": number, ' +
+          '{ "sponsors": [ { "name": string, "matchScore": number (0-100), "matchReason": string, ' +
+          '"estimatedMinUsd": number, "estimatedMaxUsd": number, ' +
           '"category": string (e.g. "Local Business", "National Brand") } ] }. ' +
-          'Return 8-12 real, plausible companies. Every entry must have all fields.',
+          'Every entry must have all fields.',
       },
       { role: 'user', content: JSON.stringify(profile) },
     ],
