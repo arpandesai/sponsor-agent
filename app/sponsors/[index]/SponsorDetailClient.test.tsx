@@ -10,7 +10,17 @@ vi.mock('next/navigation', () => ({
 import Page from './SponsorDetailClient';
 
 const sponsors = [
-  { name: 'Prairie Sports Supply', matchScore: 82, matchReason: 'Local retailer, strong fit.', estimatedMinUsd: 2000, estimatedMaxUsd: 10000, category: 'Local Business' },
+  {
+    name: 'Prairie Sports Supply',
+    matchScore: 82,
+    matchReason: 'Local retailer, strong fit.',
+    estimatedMinUsd: 2000,
+    estimatedMaxUsd: 10000,
+    category: 'Local Business',
+    evidence: [
+      { claim: 'Sponsors youth rowing clubs in the region', sourceUrl: 'https://example.com/sponsors', sourceTitle: 'Sponsors — Example Co' },
+    ],
+  },
 ];
 
 describe('Sponsor detail page', () => {
@@ -25,6 +35,19 @@ describe('Sponsor detail page', () => {
     expect(screen.getByText('Prairie Sports Supply')).toBeInTheDocument();
     expect(screen.getByText('Local retailer, strong fit.')).toBeInTheDocument();
     expect(screen.getByText(/82/)).toBeInTheDocument();
+  });
+
+  it('shows source evidence with clickable links', () => {
+    render(<Page />);
+    expect(screen.getByText('Sponsors youth rowing clubs in the region')).toBeInTheDocument();
+    const link = screen.getByRole('link', { name: /sponsors — example co/i });
+    expect(link).toHaveAttribute('href', 'https://example.com/sponsors');
+    expect(link).toHaveAttribute('target', '_blank');
+  });
+
+  it('has a back link to /sponsors', () => {
+    render(<Page />);
+    expect(screen.getByRole('link', { name: /back to sponsors/i })).toHaveAttribute('href', '/sponsors');
   });
 
   it('redirects to /sponsors when sponsorList is missing', () => {
