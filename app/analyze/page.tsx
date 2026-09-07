@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import AnalyzeClient from './AnalyzeClient';
 
@@ -6,5 +7,9 @@ export const metadata: Metadata = {
 };
 
 export default function Page() {
-  return <AnalyzeClient />;
+  return (
+    <Suspense>
+      <AnalyzeClient />
+    </Suspense>
+  );
 }
