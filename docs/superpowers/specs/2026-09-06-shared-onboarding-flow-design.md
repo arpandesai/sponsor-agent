@@ -16,17 +16,20 @@ State lives client-side (sessionStorage) between screens.
 ## Stack
 
 - Next.js (App Router) + TypeScript + Tailwind CSS
-- TinyFish Fetch API (api.fetch.tinyfish.ai) for website scraping
+- Firecrawl API for website scraping, with TinyFish Fetch API
+  (api.fetch.tinyfish.ai) as an automatic fallback if Firecrawl fails
+  (missing key or request error) — see `lib/scrape.ts`
 - OpenRouter for LLM calls (structured extraction + web-search-enabled
   matching)
 
-Env vars: `TINYFISH_API_KEY`, `OPENROUTER_API_KEY`.
+Env vars: `FIRECRAWL_API_KEY`, `TINYFISH_API_KEY`, `OPENROUTER_API_KEY`.
 
 ## Architecture
 
 Two server routes, both under `app/api/`:
 
-- `POST /api/analyze` — body: `{ url }`. Server calls TinyFish's Fetch API to
+- `POST /api/analyze` — body: `{ url }`. Server calls `lib/scrape.ts`
+  (Firecrawl first, TinyFish fallback) to
   scrape the site, feeds cleaned text to an OpenRouter model with a
   structured-output schema (org name, location, sport, organisation
   type, audience segments, programs, suggested funding needs). Streams
@@ -100,14 +103,16 @@ Shared code:
 
 ## Testing
 
-- Unit tests for `lib/firecrawl.ts` and `lib/openrouter.ts` with mocked
-  HTTP, and for `lib/org-profile.ts` parsing/validation logic.
+- Unit tests for `lib/firecrawl.ts`, `lib/tinyfish.ts`, `lib/scrape.ts`
+  (Firecrawl-first/TinyFish-fallback orchestrator), and `lib/openrouter.ts`
+  with mocked HTTP, and for `lib/org-profile.ts` parsing/validation logic.
 - Route tests for `/api/analyze` and `/api/funding` mocking upstream
-  TinyFish/OpenRouter calls, covering success, partial-data, and
-  failure paths.
-- Manual end-to-end run of the full flow (landing → analyze → confirm →
-  dashboard) against a real club/organisation URL before considering
-  this sub-project done.
+  scrape/OpenRouter calls, covering success, partial-data, and failure
+  paths.
+- `e2e/onboarding.spec.ts` (Playwright): a real end-to-end run of the
+  full flow (landing → analyze → confirm → dashboard) against a live
+  organisation URL and the real Firecrawl/TinyFish/OpenRouter APIs — run
+  via `npm run test:e2e`, requires real API keys in `.env.local`.
 
 ## Out of Scope (this spec)
 

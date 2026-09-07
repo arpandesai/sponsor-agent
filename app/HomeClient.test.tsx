@@ -4,7 +4,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 const push = vi.fn();
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
 
-import Page from './page';
+import Page from './HomeClient';
 
 describe('Landing page', () => {
   it('navigates to /analyze with the encoded url on submit', () => {

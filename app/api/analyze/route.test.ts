@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-vi.mock('@/lib/tinyfish', () => ({ scrapeUrl: vi.fn() }));
+vi.mock('@/lib/scrape', () => ({ scrapeUrl: vi.fn() }));
 vi.mock('@/lib/openrouter', () => ({ extractOrgProfile: vi.fn() }));
+vi.mock('@/lib/db', () => ({ persistClubFromProfile: vi.fn().mockResolvedValue(undefined) }));
 
-import { scrapeUrl } from '@/lib/tinyfish';
+import { scrapeUrl } from '@/lib/scrape';
 import { extractOrgProfile } from '@/lib/openrouter';
-import { POST } from './route';
+import { persistClubFromProfile } from '@/lib/db';
+import { GET } from './route';
 
 async function readAllEvents(response: Response): Promise<string> {
   const reader = response.body!.getReader();
@@ -19,7 +21,7 @@ async function readAllEvents(response: Response): Promise<string> {
   return output;
 }
 
-describe('POST /api/analyze', () => {
+describe('GET /api/analyze', () => {
   beforeEach(() => {
     vi.resetAllMocks();
   });
@@ -39,30 +41,77 @@ describe('POST /api/analyze', () => {
       fundingNeeds: [],
     });
 
-    const request = new Request('http://localhost/api/analyze', {
-      method: 'POST',
-      body: JSON.stringify({ url: 'https://example.com' }),
-    });
-    const response = await POST(request);
+    const request = new Request('http://localhost/api/analyze?url=https%3A%2F%2Fexample.com');
+    const response = await GET(request);
     const output = await readAllEvents(response);
 
     expect(output).toContain('event: step');
     expect(output).toContain('Found organisation name');
     expect(output).toContain('event: done');
     expect(output).toContain('Prairie Fencing Club');
+    expect(persistClubFromProfile).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Prairie Fencing Club' })
+    );
+  });
+
+  it('still streams the done event when persisting to the DB fails', async () => {
+    (scrapeUrl as any).mockResolvedValue({ url: 'https://example.com', text: 'site text' });
+    (extractOrgProfile as any).mockResolvedValue({
+      name: 'Prairie Fencing Club',
+      location: '',
+      sport: '',
+      organisationType: '',
+      audience: [],
+      programs: [],
+      fundingNeeds: [],
+    });
+    (persistClubFromProfile as any).mockRejectedValue(new Error('db down'));
+
+    const request = new Request('http://localhost/api/analyze?url=https%3A%2F%2Fexample.com');
+    const response = await GET(request);
+    const output = await readAllEvents(response);
+
+    expect(output).toContain('event: done');
   });
 
   it('streams an error event when scraping fails', async () => {
     (scrapeUrl as any).mockRejectedValue(new Error('Could not reach TinyFish: timeout'));
 
-    const request = new Request('http://localhost/api/analyze', {
-      method: 'POST',
-      body: JSON.stringify({ url: 'https://example.com' }),
-    });
-    const response = await POST(request);
+    const request = new Request('http://localhost/api/analyze?url=https%3A%2F%2Fexample.com');
+    const response = await GET(request);
     const output = await readAllEvents(response);
 
     expect(output).toContain('event: error');
     expect(output).toContain('timeout');
+  });
+
+  it('streams a readable error event, not a raw undefined message, when a dependency rejects with a non-Error value', async () => {
+    (scrapeUrl as any).mockRejectedValue('connection reset');
+
+    const request = new Request('http://localhost/api/analyze?url=https%3A%2F%2Fexample.com');
+    const response = await GET(request);
+    const output = await readAllEvents(response);
+
+    expect(output).toContain('event: error');
+    expect(output).toContain('connection reset');
+    expect(output).not.toContain('undefined');
+  });
+
+  it('streams an error and never calls scrapeUrl when the url query param is missing entirely', async () => {
+    const request = new Request('http://localhost/api/analyze');
+    const response = await GET(request);
+    const output = await readAllEvents(response);
+
+    expect(output).toContain('event: error');
+    expect(scrapeUrl).not.toHaveBeenCalled();
+  });
+
+  it('streams an error and never calls scrapeUrl for an empty url query param', async () => {
+    const request = new Request('http://localhost/api/analyze?url=');
+    const response = await GET(request);
+    const output = await readAllEvents(response);
+
+    expect(output).toContain('event: error');
+    expect(scrapeUrl).not.toHaveBeenCalled();
   });
 });
